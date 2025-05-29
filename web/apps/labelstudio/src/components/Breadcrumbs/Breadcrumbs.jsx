@@ -24,74 +24,167 @@ export const Breadcrumbs = () => {
     }
   }, [reactBreadcrumbs, config]);
 
+//   return (
+//     <Block name="breadcrumbs">
+//       <Elem tag="ul" name="list">
+//         {breadcrumbs.map((item, index, list) => {
+//           const isLastItem = index === list.length - 1;
+
+//           const key = `item-${index}-${item.title}`;
+
+//           const href = item.href ?? item.path;
+
+//           const isInternal = findComponent(href) !== null;
+
+//           const title = (
+//             <Elem tag="span" name="label" mod={{ faded: index === item.length - 1 }}>
+//               {item.title}
+//             </Elem>
+//           );
+
+//           const dropdownSubmenu = item.submenu ? (
+//             <Dropdown>
+//               <Menu>
+//                 {item.submenu.map((sub, index) => {
+//                   return (
+//                     <Menu.Item
+//                       key={`${index}-${item.title}`}
+//                       label={sub.title}
+//                       icon={sub.icon}
+//                       href={sub.href ?? sub.path}
+//                       active={sub.active}
+//                     />
+//                   );
+//                 })}
+//               </Menu>
+//             </Dropdown>
+//           ) : null;
+
+//           return item.onClick ? (
+//             <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>
+//               <span onClick={item.onClick}>{title}</span>
+//             </Elem>
+//           ) : dropdownSubmenu ? (
+//             <Elem
+//               key={key}
+//               tag="li"
+//               component={Dropdown.Trigger}
+//               name="item"
+//               mod={{ last: isLastItem }}
+//               content={dropdownSubmenu}
+//             >
+//               <span>{title}</span>
+//             </Elem>
+//           ) : href && !isLastItem ? (
+//             <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>
+//               {isInternal ? (
+//                 <NavLink to={href} data-external={true}>
+//                   {title}
+//                 </NavLink>
+//               ) : (
+//                 <a href={absoluteURL(href)}>{title}</a>
+//               )}
+//             </Elem>
+//           ) : (
+//             <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>
+//               {title}
+//             </Elem>
+//           );
+//         })}
+//       </Elem>
+//     </Block>
+//   );
+// 
+
   return (
-    <Block name="breadcrumbs">
-      <Elem tag="ul" name="list">
-        {breadcrumbs.map((item, index, list) => {
-          const isLastItem = index === list.length - 1;
+  <Block name="breadcrumbs">
+    <Elem tag="ul" name="list">
+      {breadcrumbs.map((item, index, list) => {
+        const isLastItem = index === list.length - 1;
 
-          const key = `item-${index}-${item.title}`;
+        const key = `item-${index}-${item.title}`;
 
-          const href = item.href ?? item.path;
+        const href = item.href ?? item.path;
 
-          const isInternal = findComponent(href) !== null;
+        const isInternal = findComponent(href) !== null;
 
-          const title = (
-            <Elem tag="span" name="label" mod={{ faded: index === item.length - 1 }}>
-              {item.title}
-            </Elem>
-          );
+        const title = (
+          <Elem tag="span" name="label" mod={{ faded: index === item.length - 1 }}>
+            {item.title}
+          </Elem>
+        );
 
-          const dropdownSubmenu = item.submenu ? (
-            <Dropdown>
-              <Menu>
-                {item.submenu.map((sub, index) => {
-                  return (
-                    <Menu.Item
-                      key={`${index}-${item.title}`}
-                      label={sub.title}
-                      icon={sub.icon}
-                      href={sub.href ?? sub.path}
-                      active={sub.active}
-                    />
-                  );
-                })}
-              </Menu>
-            </Dropdown>
-          ) : null;
+        const dropdownSubmenu = item.submenu ? (
+          <Dropdown>
+            <Menu>
+              {item.submenu.map((sub, index) => {
+                return (
+                  <Menu.Item
+                    key={`${index}-${item.title}`}
+                    label={sub.title}
+                    icon={sub.icon}
+                    href={sub.href ?? sub.path}
+                    active={sub.active}
+                  />
+                );
+              })}
+            </Menu>
+          </Dropdown>
+        ) : null;
 
-          return item.onClick ? (
-            <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>
-              <span onClick={item.onClick}>{title}</span>
-            </Elem>
-          ) : dropdownSubmenu ? (
-            <Elem
-              key={key}
-              tag="li"
-              component={Dropdown.Trigger}
-              name="item"
-              mod={{ last: isLastItem }}
-              content={dropdownSubmenu}
-            >
-              <span>{title}</span>
-            </Elem>
-          ) : href && !isLastItem ? (
-            <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>
-              {isInternal ? (
-                <NavLink to={href} data-external={true}>
-                  {title}
-                </NavLink>
-              ) : (
-                <a href={absoluteURL(href)}>{title}</a>
-              )}
-            </Elem>
-          ) : (
-            <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>
-              {title}
-            </Elem>
-          );
-        })}
-      </Elem>
-    </Block>
+        return item.onClick ? (
+          <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>
+            <span onClick={item.onClick}>{title}</span>
+          </Elem>
+        ) : dropdownSubmenu ? (
+          <Elem
+            key={key}
+            tag="li"
+            component={Dropdown.Trigger}
+            name="item"
+            mod={{ last: isLastItem }}
+            content={dropdownSubmenu}
+          >
+            <span>{title}</span>
+          </Elem>
+        ) : href && !isLastItem ? (
+          <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>
+            {isInternal ? (
+              <NavLink 
+                to={href} 
+                data-external={true}
+                onClick={(e) => {
+                  // Se il breadcrumb è "Projects" e il link è "/projects", redirigi a "/projects/1"
+                  if (item.title === "Projects" && href === "/projects") {
+                    e.preventDefault();
+                    window.location.href = "/projects/1";
+                  }
+                }}
+              >
+                {title}
+              </NavLink>
+            ) : (
+              <a 
+                href={absoluteURL(href)}
+                onClick={(e) => {
+                  // Se il breadcrumb è "Projects" e il link è "/projects", redirigi a "/projects/1"
+                  if (item.title === "Projects" && href === "/projects") {
+                    e.preventDefault();
+                    window.location.href = "/projects/1";
+                  }
+                }}
+              >
+                {title}
+              </a>
+            )}
+          </Elem>
+        ) : (
+          <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>
+            {title}
+          </Elem>
+        );
+      })}
+    </Elem>
+  </Block>
   );
 };

@@ -8,8 +8,8 @@ import "./DynamicPreannotationsToggle.scss";
 
 export const DynamicPreannotationsToggle = inject("store")(
   observer(({ store }) => {
-    const enabled = store.hasInterface("auto-annotation") && !store.forceAutoAnnotation;
-
+    // const enabled = store.hasInterface("auto-annotation") && !store.forceAutoAnnotation;
+      const enabled = true;
     useEffect(() => {
       if (!enabled) store.setAutoAnnotation(false);
     }, [enabled]);

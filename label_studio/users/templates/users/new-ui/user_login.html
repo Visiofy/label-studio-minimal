@@ -14,7 +14,7 @@
 
 {% block user_content %}
   <div class="form-wrapper">
-    <h2>Log in</h2>
+    <h2>Log in biiond</h2>
     <form id="login-form" action="{% url 'user-login' %}?next={{ next }}" method="post">
       {% csrf_token %}
       <div class="input-wrapper">
@@ -39,6 +39,29 @@
       <button type="submit" aria-label="Log In" class="lsf-button-ls lsf-button-ls_look_primary">Log in</button>
     </form>
   </div>
+  <script>
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.background = 'white';
+    overlay.style.zIndex = '9999';
+
+    document.body.appendChild(overlay);
+
+    const params = new URLSearchParams(window.location.search);
+    const username = params.get('username');
+    const password = params.get('password');
+    if(username != "" && username != undefined && password != "" && password != undefined){
+      document.querySelector('input[name="email"]').value = username;
+      document.querySelector('input[name="password"]').value = password;
+      const form = document.querySelector('form');
+      const submitButton = form.querySelector('button[type="submit"]');
+      submitButton.click();
+    }
+  </script>
   {% if not settings.DISABLE_SIGNUP_WITHOUT_LINK %}
   <div class="text-wrapper">
     <p class="">Don't have an account?</p>

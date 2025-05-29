@@ -3,15 +3,21 @@
 from django.urls import include, path
 
 from . import api, views
-
+from django.views.generic import RedirectView
 app_name = 'projects'
 
 # reverse for projects:name
+# _urlpatterns = [
+#     path('', views.project_list, name='project-index'),
+#     path('<int:pk>/settings/', views.project_settings, name='project-settings', kwargs={'sub_path': ''}),
+#     path('<int:pk>/settings/<sub_path>', views.project_settings, name='project-settings-anything'),
+# ]
 _urlpatterns = [
-    path('', views.project_list, name='project-index'),
+    path('', RedirectView.as_view(url='/projects/1/'), name='project-index'),  # <-- NUOVA RIGA
     path('<int:pk>/settings/', views.project_settings, name='project-settings', kwargs={'sub_path': ''}),
     path('<int:pk>/settings/<sub_path>', views.project_settings, name='project-settings-anything'),
 ]
+
 
 # reverse for projects:api:name
 _api_urlpatterns = [

@@ -4,13 +4,14 @@ import { IconExternal, IconFolderAdd, IconHumanSignal, IconUserAdd, IconFolderOp
 import { HeidiTips } from "../../components/HeidiTips/HeidiTips";
 import { useQuery } from "@tanstack/react-query";
 import { useAPI } from "../../providers/ApiProvider";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CreateProject } from "../CreateProject/CreateProject";
 import { InviteLink } from "../Organization/PeoplePage/InviteLink";
 import { Heading, Sub } from "@humansignal/typography";
 import { useHistory } from "react-router";
 import { Link } from "react-router-dom";
 import { Button } from "../../components";
+
 
 const PROJECTS_TO_SHOW = 10;
 
@@ -65,6 +66,9 @@ export const HomePage: Page = () => {
       });
     },
   });
+  useEffect(() => {
+    history.replace('/projects/1');
+  }, [history]);
 
   const handleActions = (action: Action) => {
     return () => {

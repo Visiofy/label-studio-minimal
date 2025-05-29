@@ -3,7 +3,7 @@
 import logging
 
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 
 logger = logging.getLogger(__name__)
 
@@ -15,4 +15,5 @@ def project_list(request):
 
 @login_required
 def project_settings(request, pk, sub_path):
-    return render(request, 'projects/settings.html')
+    # return render(request, 'projects/settings.html')
+    return redirect("/projects/1")
