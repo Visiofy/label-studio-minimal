@@ -159,6 +159,10 @@ export const Breadcrumbs = () => {
                     e.preventDefault();
                     window.location.href = "/projects/1";
                   }
+                  if (item.title === "Settings"){
+                    e.preventDefault();
+                    window.location.href = "/projects/1";
+                  }
                 }}
               >
                 {title}
@@ -169,6 +173,10 @@ export const Breadcrumbs = () => {
                 onClick={(e) => {
                   // Se il breadcrumb è "Projects" e il link è "/projects", redirigi a "/projects/1"
                   if (item.title === "Projects" && href === "/projects") {
+                    e.preventDefault();
+                    window.location.href = "/projects/1";
+                  }
+                  if (item.title === "Settings"){
                     e.preventDefault();
                     window.location.href = "/projects/1";
                   }

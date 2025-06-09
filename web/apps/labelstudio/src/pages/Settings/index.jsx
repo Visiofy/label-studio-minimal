@@ -38,30 +38,25 @@ const SettingsLayoutManager = ({ children, ...routeProps }) => {
   const location = useLocation();
   
   useEffect(() => {
-    console.log('SettingsLayoutManager - Current path:', location.pathname);
-    
-    // Se siamo su /settings/labeling, NON fare il redirect - lascia che LabelingSettings gestisca
-    if (location.pathname.endsWith('/settings/labeling')) {
-      console.log('Path is /settings/labeling - skipping redirect');
-      return;
-    }
-    
-    // Per TUTTE le altre route che iniziano con /settings, fai il redirect
-    if (location.pathname.includes('/settings')) {
-      console.log('Redirecting all other /settings routes to export endpoint');
-      
-      const currentPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-      const exportUrl = `http://192.168.2.136:6001/api/export_format?source_port=${currentPort}`;
-      
-      // Aggiungi un piccolo delay per debug
-      setTimeout(() => {
-        console.log('Executing redirect to:', exportUrl);
-        window.location.href = exportUrl;
-      }, 100);
-      
-      return;
-    }
-  }, [location.pathname]);
+  const isLabelingPage = location.pathname.endsWith('/settings/labeling');
+  const searchParams = new URLSearchParams(location.search);
+  const isFromBreadcrumb = searchParams.get('from') === 'breadcrumb';
+
+  if (isLabelingPage || isFromBreadcrumb) {
+    console.log('Skipping redirect (labeling page or from breadcrumb)');
+    return;
+  }
+
+  if (location.pathname.includes('/settings')) {
+    const currentPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+    const exportUrl = `http://192.168.2.136:6001/api/export_format?source_port=${currentPort}`;
+
+    setTimeout(() => {
+      console.log('Redirecting to export endpoint:', exportUrl);
+      window.location.href = exportUrl;
+    }, 100);
+  }
+}, [location.pathname, location.search]);
 
   // Per tutte le altre route /settings, il redirect dovrebbe già essere avvenuto nell'useEffect
   // Ma se arriviamo qui, renderizza i children

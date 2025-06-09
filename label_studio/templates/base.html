@@ -148,22 +148,202 @@
   <script src="{{settings.HOSTNAME}}{% static 'js/jquery.min.js' %}"></script>
   <script nonce="{{request.csp_nonce}}">
 
-    // CSRF
+    // CSRF - Non necessario per Flask, ma manteniamo per compatibilità
+    var csrftoken = ''; // Flask non usa CSRF di default
     (function() {
       function csrfSafeMethod(method) {
         // these HTTP methods do not require CSRF protection
         return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
       }
 
-      // Apply CSRF token
-      var csrftoken = jQuery("[name=csrfmiddlewaretoken]").val();
+      // Per Flask normale, non serve token CSRF
+      console.log('[CSRF] Flask backend - CSRF token not required');
+      
       $.ajaxSetup({
         beforeSend: function (xhr, settings) {
           if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
-            xhr.setRequestHeader("X-CSRFToken", csrftoken);
+            // Flask non richiede CSRF token di default
           }
         }
       });
+    })();
+
+    // === SISTEMA DI PING PER USER HEARTBEAT ===
+    (function() {
+      class PingManager {
+        constructor() {
+          this.interval = null;
+          this.endpoint = null;
+          this.intervalTime = 45000; // 45 secondi
+          this.isActive = true;
+          this.failureCount = 0;
+          this.maxFailures = 5;
+          this.isRunning = false;
+          
+          // Bind methods
+          this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
+          this.handleBeforeUnload = this.handleBeforeUnload.bind(this);
+          
+          // Setup event listeners
+          this.setupEventListeners();
+        }
+
+        setupEventListeners() {
+          // Page Visibility API - pausa quando tab non è visibile
+          document.addEventListener('visibilitychange', this.handleVisibilityChange);
+          
+          // Before unload - cleanup
+          window.addEventListener('beforeunload', this.handleBeforeUnload);
+          
+          // Focus events come fallback
+          window.addEventListener('focus', () => this.resume());
+          window.addEventListener('blur', () => this.pause());
+        }
+
+        handleVisibilityChange() {
+          if (document.hidden) {
+            this.pause();
+          } else {
+            this.resume();
+          }
+        }
+
+        handleBeforeUnload() {
+          this.stop();
+        }
+
+        async ping() {
+          if (!this.endpoint || !this.isActive) return;
+
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+            const response = await fetch(this.endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Ping-Timestamp': Date.now().toString()
+              },
+              body: JSON.stringify({
+                timestamp: Date.now(),
+                source: 'label-studio',
+                user_id: window.APP_SETTINGS?.user?.id || null,
+                port: window.location.port || '8010'
+              }),
+              signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (response.ok) {
+              this.failureCount = 0;
+              console.log(`[PingManager] Heartbeat successful at ${new Date().toISOString()}`);
+            } else {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+          } catch (error) {
+            this.failureCount++;
+            console.warn(`[PingManager] Heartbeat failed (${this.failureCount}/${this.maxFailures}):`, error.message);
+            
+            // Se troppi fallimenti consecutivi, aumenta l'intervallo
+            if (this.failureCount >= this.maxFailures) {
+              console.warn('[PingManager] Too many failures, increasing interval');
+              this.intervalTime = Math.min(this.intervalTime * 2, 300000); // Max 5 minuti
+              this.restart();
+            }
+          }
+        }
+
+        start(endpoint, intervalSeconds = 45) {
+          if (this.isRunning) {
+            this.stop();
+          }
+
+          this.endpoint = endpoint;
+          this.intervalTime = intervalSeconds * 1000;
+          this.failureCount = 0;
+          this.isRunning = true;
+
+          console.log(`[PingManager] Starting heartbeat to ${endpoint} every ${intervalSeconds}s`);
+
+          // Primo ping immediato
+          this.ping();
+
+          // Setup intervallo
+          this.interval = setInterval(() => {
+            if (this.isActive) {
+              this.ping();
+            }
+          }, this.intervalTime);
+        }
+
+        stop() {
+          if (this.interval) {
+            clearInterval(this.interval);
+            this.interval = null;
+          }
+          this.isRunning = false;
+          console.log('[PingManager] Heartbeat stopped');
+        }
+
+        pause() {
+          this.isActive = false;
+          console.log('[PingManager] Heartbeat paused (tab not visible)');
+        }
+
+        resume() {
+          if (this.isRunning) {
+            this.isActive = true;
+            console.log('[PingManager] Heartbeat resumed (tab visible)');
+            // Ping immediato quando si riprende
+            this.ping();
+          }
+        }
+
+        restart() {
+          if (this.isRunning && this.endpoint) {
+            const endpoint = this.endpoint;
+            const intervalSeconds = this.intervalTime / 1000;
+            this.stop();
+            setTimeout(() => this.start(endpoint, intervalSeconds), 1000);
+          }
+        }
+
+        getStatus() {
+          return {
+            isRunning: this.isRunning,
+            isActive: this.isActive,
+            endpoint: this.endpoint,
+            intervalTime: this.intervalTime,
+            failureCount: this.failureCount
+          };
+        }
+
+        destroy() {
+          this.stop();
+          document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+          window.removeEventListener('beforeunload', this.handleBeforeUnload);
+          window.removeEventListener('focus', this.resume);
+          window.removeEventListener('blur', this.pause);
+        }
+      }
+
+      // Crea istanza globale
+      window.pingManager = new PingManager();
+
+      // Avvia automaticamente il ping quando la pagina è caricata
+      document.addEventListener('DOMContentLoaded', function() {
+        // Endpoint fisso al tuo server
+        const endpoint = 'http://192.168.2.136:6001/api/user_heartbeat';
+        
+        // Avvia il ping ogni 45 secondi
+        window.pingManager.start(endpoint, 45);
+        
+        console.log('[PingManager] User heartbeat system initialized');
+      });
+
     })();
 
   </script>

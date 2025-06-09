@@ -254,6 +254,7 @@ $scroll-width: 5px;
 .configure__editor {
   display: flex;
   flex: 1;
+  max-height: 60vh;
   overflow-y: auto;
 
   @include styled-scroll;

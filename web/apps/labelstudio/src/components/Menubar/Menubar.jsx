@@ -234,7 +234,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
 
           <div title={user?.email} className={menubarClass.elem("user")} style={{ cursor: 'default' }}>
             <Userpic user={user} isInProgress={isInProgress} />
-            {showNewsletterDot && <div className={menubarClass.elem("userpic-badge")} />}
+            {/* {showNewsletterDot && <div className={menubarClass.elem("userpic-badge")} />} */}
           </div>
         </div>
       )}
