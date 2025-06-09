@@ -1,6 +1,6 @@
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@humansignal/ui/lib/card-new/card";
-import { useMemo } from "react";
-import { Redirect } from "react-router-dom";
+import { useMemo, useEffect } from "react";
+import { Redirect, useHistory } from "react-router-dom";
 import styles from "./AccountSettings.module.scss";
 import { accountSettingsSections } from "./sections";
 import clsx from "clsx";
@@ -13,6 +13,17 @@ import { settingsAtom } from "./atoms";
  */
 import { SidebarMenu } from "apps/labelstudio/src/components/SidebarMenu/SidebarMenu";
 
+const AccountSettingsPage = () => {
+  // ✅ AGGIUNGI IL REDIRECT:
+  const history = useHistory();
+  
+  useEffect(() => {
+    console.log('AccountSettings: redirecting to /projects/1');
+    history.replace('/projects/1');
+  }, [history]);
+
+  return null;
+/*
 const AccountSettingsPage = () => {
   const settings = useAtomValue(settingsAtom);
   const contentClassName = clsx(styles.accountSettings__content, {
@@ -56,7 +67,7 @@ const AccountSettingsPage = () => {
         </div>
       </SidebarMenu>
     </div>
-  );
+  ); */
 };
 
 AccountSettingsPage.title = "My Account";

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useHistory } from "react-router";
 import { StaticContent } from "../../app/StaticContent/StaticContent";
 import {
   IconBook,
@@ -12,7 +13,6 @@ import {
   IconSettings,
   IconSlack,
 } from "@humansignal/icons";
-import { LSLogo } from "../../assets/images";
 import { Userpic, ThemeToggle } from "@humansignal/ui";
 import { useConfig } from "../../providers/ConfigProvider";
 import { useContextComponent, useFixedLocation } from "../../providers/RoutesProvider";
@@ -41,14 +41,81 @@ const LeftContextMenu = ({ className }) => (
 );
 
 const RightContextMenu = ({ className, ...props }) => {
-  const { ContextComponent, contextProps } = useContextComponent();
+  const history = useHistory();
+  
+  // Ottieni porta dall'URL corrente
+  const getCurrentPort = () => {
+    return window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+  };
 
-  return ContextComponent ? (
+  // Ottieni project ID dall'URL corrente
+  const getProjectId = () => {
+    const pathMatch = window.location.pathname.match(/\/projects\/(\d+)/);
+    return pathMatch ? pathMatch[1] : null;
+  };
+
+  const currentPort = getCurrentPort();
+  const projectId = getProjectId();
+  const exportUrl = `http://192.168.2.136:6001/api/export_format?source_port=${currentPort}`;
+
+  // Handler sicuro per Data Config - VERSIONE CORRETTA
+  const handleDataConfigClick = useCallback((e) => {
+    e.preventDefault();
+    
+    console.log('Data Config clicked');
+    console.log('Current pathname:', window.location.pathname);
+    console.log('Project ID:', projectId);
+    
+    if (!projectId) {
+      console.error('No project ID found in URL');
+      return;
+    }
+
+    const targetUrl = `/projects/${projectId}/settings/labeling`;
+    console.log('Navigating to:', targetUrl);
+    
+    // Usa window.location.href invece di history.push per evitare problemi MobX
+    window.location.href = targetUrl;
+  }, [projectId]); // Rimuovi history dalle dependencies
+
+  return (
     <div className={className}>
-      <ContextComponent {...props} {...(contextProps ?? {})} />
+      <div className="lsf-space-ls lsf-space-ls_direction_horizontal lsf-space-ls_size_small">
+        {/* Bottone Data Config - visibile solo quando siamo in un progetto */}
+        {projectId && (
+          <button
+            onClick={handleDataConfigClick}
+            className="lsf-button-ls lsf-button-ls_size_compact lsf-button-ls_look_"
+            style={{
+              backgroundColor: 'white',
+              color: '#333',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              border: '1px solid #ddd',
+              marginRight: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Data Config
+          </button>
+        )}
+        
+        <a 
+          href={exportUrl}
+          className="lsf-button-ls lsf-button-ls_size_compact lsf-button-ls_look_"
+          style={{
+            backgroundColor: 'white',
+            color: '#333',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            textDecoration: 'none',
+            border: '1px solid #ddd'
+          }}
+        >
+          Export
+        </a>
+      </div>
     </div>
-  ) : (
-    <StaticContent id="context-menu-right" className={className} />
   );
 };
 
@@ -82,7 +149,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
       setSidebarPinned(newState);
       onSidebarPin?.(newState);
     },
-    [sidebarPinned],
+    [sidebarPinned, onSidebarPin],
   );
 
   const sidebarToggle = useCallback(
@@ -92,7 +159,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
       setSidebarOpened(newState);
       onSidebarToggle?.(newState);
     },
-    [sidebarOpened],
+    [onSidebarToggle],
   );
 
   const providerValue = useMemo(
@@ -129,119 +196,51 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
       menuDropdownRef?.current?.close();
     }
     useMenuRef?.current?.close();
-  }, [location]);
+  }, [location, sidebarPinned]);
 
   return (
     <div className={contentClass}>
       {enabled && (
         <div className={menubarClass}>
-          <Dropdown.Trigger dropdown={menuDropdownRef} closeOnClickOutside={!sidebarPinned}>
-            <div className={`${menubarClass.elem("trigger")} main-menu-trigger`}>
-              <LSLogo className={`${menubarClass.elem("logo")}`} alt="Label Studio Logo" />
-              <Hamburger opened={sidebarOpened} />
-            </div>
-          </Dropdown.Trigger>
-
+          
+          <div 
+            className={`${menubarClass.elem("trigger")} main-menu-trigger`}
+            onClick={() => window.location.pathname = '/projects/1'}
+            style={{ 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+          >
+            {/* Logo Visiofy */}
+            <img 
+              src="https://cloud.visiofy.ai:5005/static/icons/logo/landscape-b.svg" 
+              className={`${menubarClass.elem("logo")}`} 
+              alt="Visiofy Logo" 
+              style={{
+                height: '32px',
+                width: 'auto'
+              }}
+            />
+            <Hamburger opened={sidebarOpened} />
+          </div>
+          
           <div className={menubarContext}>
             <LeftContextMenu className={contextItem.mod({ left: true })} />
-
             <RightContextMenu className={contextItem.mod({ right: true })} />
           </div>
 
           <div className={menubarClass.elem("spacer").toString()} />
 
-          {ff.isActive(ff.FF_THEME_TOGGLE) && <ThemeToggle />}
-
-          <Dropdown.Trigger
-            ref={useMenuRef}
-            align="right"
-            content={
-              <Menu>
-                <Menu.Item
-                  icon={<IconSettings />}
-                  label="Account &amp; Settings"
-                  href={pages.AccountSettingsPage.path}
-                />
-                {/* <Menu.Item label="Dark Mode"/> */}
-                <Menu.Item icon={<IconDoor />} label="Log Out" href={absoluteURL("/logout")} data-external />
-                {showNewsletterDot && (
-                  <>
-                    <Menu.Divider />
-                    <Menu.Item className={cn("newsletter-menu-item")} href={pages.AccountSettingsPage.path}>
-                      <span>Please check new notification settings in the Account & Settings page</span>
-                      <span className={cn("newsletter-menu-badge")} />
-                    </Menu.Item>
-                  </>
-                )}
-              </Menu>
-            }
-          >
-            <div title={user?.email} className={menubarClass.elem("user")}>
-              <Userpic user={user} isInProgress={isInProgress} />
-              {showNewsletterDot && <div className={menubarClass.elem("userpic-badge")} />}
-            </div>
-          </Dropdown.Trigger>
+          <div title={user?.email} className={menubarClass.elem("user")} style={{ cursor: 'default' }}>
+            <Userpic user={user} isInProgress={isInProgress} />
+            {showNewsletterDot && <div className={menubarClass.elem("userpic-badge")} />}
+          </div>
         </div>
       )}
 
       <VersionProvider>
         <div className={contentClass.elem("body")}>
-          {enabled && (
-            <Dropdown
-              ref={menuDropdownRef}
-              onToggle={sidebarToggle}
-              onVisibilityChanged={() => window.dispatchEvent(new Event("resize"))}
-              visible={sidebarOpened}
-              className={[sidebarClass, sidebarClass.mod({ floating: !sidebarPinned })].join(" ")}
-              style={{ width: 240 }}
-            >
-              <Menu>
-                {isFF(FF_HOMEPAGE) && <Menu.Item label="Home" to="/" icon={<IconHome />} data-external exact />}
-                <Menu.Item label="Projects" to="/projects" icon={<IconFolder />} data-external exact />
-                <Menu.Item label="Organization" to="/organization" icon={<IconPersonInCircle />} data-external exact />
-
-                <Menu.Spacer />
-
-                <VersionNotifier showNewVersion />
-
-                <Menu.Item
-                  label="API"
-                  href="https://api.labelstud.io/api-reference/introduction/getting-started"
-                  icon={<IconTerminal />}
-                  target="_blank"
-                />
-                <Menu.Item label="Docs" href="https://labelstud.io/guide" icon={<IconBook />} target="_blank" />
-                <Menu.Item
-                  label="GitHub"
-                  href="https://github.com/HumanSignal/label-studio"
-                  icon={<IconGithub />}
-                  target="_blank"
-                  rel="noreferrer"
-                />
-                <Menu.Item
-                  label="Slack Community"
-                  href="https://slack.labelstud.io/?source=product-menu"
-                  icon={<IconSlack />}
-                  target="_blank"
-                  rel="noreferrer"
-                />
-
-                <VersionNotifier showCurrentVersion />
-
-                <Menu.Divider />
-
-                <Menu.Item
-                  icon={<IconPin />}
-                  className={sidebarClass.elem("pin")}
-                  onClick={sidebarPin}
-                  active={sidebarPinned}
-                >
-                  {sidebarPinned ? "Unpin menu" : "Pin menu"}
-                </Menu.Item>
-              </Menu>
-            </Dropdown>
-          )}
-
           <MenubarContext.Provider value={providerValue}>
             <div className={contentClass.elem("content").mod({ withSidebar: sidebarPinned && sidebarOpened })}>
               {children}

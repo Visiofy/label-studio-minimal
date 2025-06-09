@@ -117,7 +117,13 @@ def user_login(request):
     form = login_form()
 
     if user.is_authenticated:
-        return redirect(next_page)
+        request.session.flush()
+        if hasattr(request, "user"):
+            from django.contrib.auth.models import AnonymousUser
+
+            request.user = AnonymousUser()
+            user = request.user
+
 
     if request.method == 'POST':
         form = login_form(request.POST)

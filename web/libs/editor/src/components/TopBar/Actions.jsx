@@ -98,9 +98,9 @@ export const Actions = ({ store }) => {
       )}
 
       <Button
-        icon={<IconSettings />}
+        // icon={<IconSettings />}
         type="text"
-        aria-label="Settings"
+        aria-label="Export"
         onClick={() => store.toggleSettings()}
         style={{
           height: 36,
@@ -108,6 +108,7 @@ export const Actions = ({ store }) => {
           padding: 0,
         }}
       />
+      
 
       {store.description && store.hasInterface("instruction") && !isBulkMode && (
         <Button

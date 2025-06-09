@@ -15,5 +15,5 @@ def project_list(request):
 
 @login_required
 def project_settings(request, pk, sub_path):
-    # return render(request, 'projects/settings.html')
-    return redirect("/projects/1")
+    return render(request, 'projects/settings.html')
+    #return redirect("/projects/1")

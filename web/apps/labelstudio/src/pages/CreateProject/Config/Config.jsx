@@ -216,14 +216,14 @@ const ConfigureSettings = ({ template }) => {
   // check for active settings
   if (!items.filter(Boolean).length) return null;
 
-  return (
-    <ul className={configClass.elem("settings")}>
-      <li>
-        <h4>Configure settings</h4>
-        <ul className={configClass.elem("object-settings")}>{items}</ul>
-      </li>
-    </ul>
-  );
+  // return (
+  //   <ul className={configClass.elem("settings")}>
+  //     <li>
+  //       <h4>Configure settings</h4>
+  //       <ul className={configClass.elem("object-settings")}>{items}</ul>
+  //     </li>
+  //   </ul>
+  // );
 };
 
 // configure value source for `obj` object tag
@@ -487,7 +487,7 @@ const Configurator = ({
     <div className={configClass}>
       <div className={configClass.elem("container")}>
         <h1>Labeling Interface{hasChanges ? " *" : ""}</h1>
-        <header>
+        {/* <header>
           <Button
             look="secondary"
             type="button"
@@ -499,7 +499,7 @@ const Configurator = ({
             Browse Templates
           </Button>
           <ToggleItems items={{ code: "Code", visual: "Visual" }} active={configure} onSelect={onSelect} />
-        </header>
+        </header> */}
         <div className={configClass.elem("editor")}>
           {configure === "code" && (
             <div className={configClass.elem("code")} style={{ display: configure === "code" ? undefined : "none" }}>

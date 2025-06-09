@@ -43,7 +43,8 @@ $scroll-width: 5px;
 .wizard .configure__container {
   display: flex;
   flex-direction: column;
-  padding: 16px 16px - $scroll-width 16px 20px;
+  // padding: 16px 16px - $scroll-width 16px 20px;
+  padding: 16px calc(20px + #{$scroll-width}) 16px 16px;
   overflow-y: scroll;
   background-color: var(--color-neutral-background);
 

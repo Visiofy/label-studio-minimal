@@ -1,3 +1,5 @@
+
+
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { generatePath, useHistory } from "react-router";
 import { NavLink } from "react-router-dom";
@@ -38,8 +40,8 @@ const initializeDataManager = async (root, props, params) => {
     showPreviews: false,
     apiEndpoints: APIConfig.endpoints,
     interfaces: {
-      import: true,
-      export: true,
+      import: false,
+      export: false,
       backButton: false,
       labelingHeader: false,
       autoAnnotation: params.autoAnnotation,
@@ -230,6 +232,7 @@ DataManagerPage.pages = {
 };
 DataManagerPage.context = ({ dmRef }) => {
   const { project } = useProject();
+  const history = useHistory();
   const [mode, setMode] = useState(dmRef?.mode ?? "explorer");
 
   const links = {
@@ -293,6 +296,17 @@ DataManagerPage.context = ({ dmRef }) => {
           Instructions
         </Button>
       )}
+
+      {/* Bottone Data Config nel context menu */}
+      <Button
+        size="compact"
+        onClick={() => {
+          console.log('Data Config clicked from context');
+          history.push(`/projects/${project.id}/settings/labeling`);
+        }}
+      >
+        Data Config
+      </Button>
 
       {Object.entries(links).map(([path, label]) => (
         <Button key={path} tag={NavLink} size="compact" to={`/projects/${project.id}${path}`} data-external>

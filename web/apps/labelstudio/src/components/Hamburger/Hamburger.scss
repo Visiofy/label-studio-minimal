@@ -1,9 +1,11 @@
 .hamburger {
+  display: none !important; // ✅ NASCONDE
+  pointer-events: none !important;
   width: 18px;
   height: 14px;
-  cursor: pointer;
+  // cursor: pointer;
   position: relative;
-  display: inline-block;
+  // display: inline-block;
 
   span {
     height: 2px;
