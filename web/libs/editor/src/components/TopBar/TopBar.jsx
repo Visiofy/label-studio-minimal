@@ -49,7 +49,7 @@ export const TopBar = observer(({ store }) => {
               />
             </Tooltip>
           )}
-          {store.hasInterface("annotations:add-new") && (
+          {/* {store.hasInterface("annotations:add-new") && (
             <Tooltip title="Create a new annotation" style={{ "--offset-x": "11px" }}>
               <Button
                 icon={<IconPlus />}
@@ -70,7 +70,7 @@ export const TopBar = observer(({ store }) => {
                 }}
               />
             </Tooltip>
-          )}
+          )} */}
           {!isViewAll && (
             <AnnotationsCarousel
               store={store}

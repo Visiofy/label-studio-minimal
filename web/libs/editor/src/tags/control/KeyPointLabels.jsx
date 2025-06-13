@@ -1,5 +1,6 @@
 import { observer } from "mobx-react";
 import { types } from "mobx-state-tree";
+import { useEffect, useRef } from "react";
 
 import LabelMixin from "../../mixins/LabelMixin";
 import Registry from "../../core/Registry";
@@ -49,8 +50,70 @@ const ModelAttrs = types
   .views((self) => ({
     get hasStates() {
       const states = self.states();
-
       return states && states.length > 0;
+    },
+
+    get hasLabels() {
+      return self.children && self.children.some(child => child.type === 'label');
+    },
+
+    get isReady() {
+      // Verifica che il componente sia pronto per la selezione
+      return self.children && self.children.length > 0 && self.annotation;
+    },
+  }))
+  .volatile(() => ({
+    _selectionInitialized: false,
+  }))
+  .actions((self) => ({
+    afterCreate() {
+      // Non fare nulla qui - la selezione verrà gestita nel componente React
+    },
+    
+    initializeSelection() {
+      // Previeni inizializzazioni multiple
+      if (self._selectionInitialized) return;
+      
+      // Verifica che ci siano label disponibili
+      if (!self.hasLabels) return;
+      
+      // Se c'è già una selezione, non fare nulla
+      if (self.selectedLabels && self.selectedLabels.length > 0) {
+        self._selectionInitialized = true;
+        return;
+      }
+
+      const storageKey = `keypointlabel_last_selected_${self.name}`;
+      const lastSelectedValue = localStorage.getItem(storageKey);
+      
+      let labelToSelect = null;
+      
+      // Prova a trovare l'ultima label selezionata
+      if (lastSelectedValue) {
+        labelToSelect = self.children.find(child => 
+          child.type === 'label' && child.value === lastSelectedValue
+        );
+      }
+      
+      // Se non trovata, prendi la prima disponibile
+      if (!labelToSelect) {
+        labelToSelect = self.children.find(child => child.type === 'label');
+      }
+      
+      // Seleziona la label
+      if (labelToSelect && labelToSelect.setSelected) {
+        labelToSelect.setSelected(true);
+        self._selectionInitialized = true;
+      }
+    },
+
+    resetSelectionState() {
+      self._selectionInitialized = false;
+    },
+    
+    onLabelSelected(labelValue) {
+      const storageKey = `keypointlabel_last_selected_${self.name}`;
+      localStorage.setItem(storageKey, labelValue);
     },
   }));
 
@@ -67,6 +130,64 @@ const Composition = types.compose(
 const KeyPointLabelsModel = types.compose("KeyPointLabelsModel", Composition);
 
 const HtxKeyPointLabels = observer(({ item }) => {
+  const initializationAttempted = useRef(false);
+  const lastTaskId = useRef(null);
+
+  useEffect(() => {
+    const currentTaskId = item.annotation?.task?.id;
+    
+    // Reset quando cambia il task
+    if (currentTaskId !== lastTaskId.current) {
+      initializationAttempted.current = false;
+      lastTaskId.current = currentTaskId;
+      if (item.resetSelectionState) {
+        item.resetSelectionState();
+      }
+    }
+
+    // Esci se non siamo pronti
+    if (!item.isReady) return;
+
+    // Esci se abbiamo già tentato l'inizializzazione per questo task
+    if (initializationAttempted.current) return;
+
+    // Funzione per tentare l'inizializzazione
+    const attemptInitialization = () => {
+      if (!item.selectedLabels || item.selectedLabels.length === 0) {
+        if (item.initializeSelection) {
+          item.initializeSelection();
+          initializationAttempted.current = true;
+          return true;
+        }
+      } else {
+        // Se c'è già una selezione, marca come completato
+        initializationAttempted.current = true;
+        return true;
+      }
+      return false;
+    };
+
+    // Primo tentativo immediato
+    if (attemptInitialization()) return;
+
+    // Se fallisce, usa un singolo retry con breve delay
+    const retryTimeout = setTimeout(() => {
+      attemptInitialization();
+    }, 50);
+
+    return () => clearTimeout(retryTimeout);
+  }, [item, item.isReady, item.annotation?.task?.id]);
+
+  // Salva la selezione quando cambia
+  useEffect(() => {
+    if (item.selectedLabels && item.selectedLabels.length > 0) {
+      const selectedLabel = item.selectedLabels[0];
+      if (selectedLabel && selectedLabel.value && item.onLabelSelected) {
+        item.onLabelSelected(selectedLabel.value);
+      }
+    }
+  }, [item.selectedLabels, item]);
+
   return <HtxLabels item={item} />;
 });
 

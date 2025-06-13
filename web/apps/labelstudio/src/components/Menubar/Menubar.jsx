@@ -43,12 +43,10 @@ const LeftContextMenu = ({ className }) => (
 const RightContextMenu = ({ className, ...props }) => {
   const history = useHistory();
   
-  // Ottieni porta dall'URL corrente
   const getCurrentPort = () => {
     return window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
   };
 
-  // Ottieni project ID dall'URL corrente
   const getProjectId = () => {
     const pathMatch = window.location.pathname.match(/\/projects\/(\d+)/);
     return pathMatch ? pathMatch[1] : null;
@@ -58,13 +56,8 @@ const RightContextMenu = ({ className, ...props }) => {
   const projectId = getProjectId();
   const exportUrl = `http://192.168.2.136:6001/api/export_format?source_port=${currentPort}`;
 
-  // Handler sicuro per Data Config - VERSIONE CORRETTA
   const handleDataConfigClick = useCallback((e) => {
     e.preventDefault();
-    
-    console.log('Data Config clicked');
-    console.log('Current pathname:', window.location.pathname);
-    console.log('Project ID:', projectId);
     
     if (!projectId) {
       console.error('No project ID found in URL');
@@ -72,16 +65,56 @@ const RightContextMenu = ({ className, ...props }) => {
     }
 
     const targetUrl = `/projects/${projectId}/settings/labeling`;
-    console.log('Navigating to:', targetUrl);
-    
-    // Usa window.location.href invece di history.push per evitare problemi MobX
     window.location.href = targetUrl;
-  }, [projectId]); // Rimuovi history dalle dependencies
+  }, [projectId]);
 
+  const handleExportClick = useCallback((e) => {
+  e.preventDefault();
+  
+  document.body.innerHTML = `
+    <div style="
+      background-color: white; 
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      width: 100%; 
+      height: 100%; 
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    ">
+      <div style="
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 20px;
+      "></div>
+      <p style="
+        margin: 0;
+        font-size: 18px;
+        color: #333;
+        font-weight: 500;
+      ">Exporting...</p>
+    </div>
+    <style>
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+  `;
+  
+  window.location.href = exportUrl;
+}, [exportUrl]);
   return (
     <div className={className}>
       <div className="lsf-space-ls lsf-space-ls_direction_horizontal lsf-space-ls_size_small">
-        {/* Bottone Data Config - visibile solo quando siamo in un progetto */}
         {projectId && (
           <button
             onClick={handleDataConfigClick}
@@ -100,20 +133,20 @@ const RightContextMenu = ({ className, ...props }) => {
           </button>
         )}
         
-        <a 
-          href={exportUrl}
+        <button
+          onClick={handleExportClick}
           className="lsf-button-ls lsf-button-ls_size_compact lsf-button-ls_look_"
           style={{
             backgroundColor: 'white',
             color: '#333',
             padding: '8px 16px',
             borderRadius: '4px',
-            textDecoration: 'none',
-            border: '1px solid #ddd'
+            border: '1px solid #ddd',
+            cursor: 'pointer'
           }}
         >
           Export
-        </a>
+        </button>
       </div>
     </div>
   );
@@ -212,7 +245,6 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
               alignItems: 'center'
             }}
           >
-            {/* Logo Visiofy */}
             <img 
               src="https://cloud.visiofy.ai:5005/static/icons/logo/landscape-b.svg" 
               className={`${menubarClass.elem("logo")}`} 
@@ -234,7 +266,6 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
 
           <div title={user?.email} className={menubarClass.elem("user")} style={{ cursor: 'default' }}>
             <Userpic user={user} isInProgress={isInProgress} />
-            {/* {showNewsletterDot && <div className={menubarClass.elem("userpic-badge")} />} */}
           </div>
         </div>
       )}
