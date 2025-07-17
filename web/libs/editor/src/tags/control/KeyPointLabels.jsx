@@ -1,6 +1,6 @@
 import { observer } from "mobx-react";
 import { types } from "mobx-state-tree";
-import { useEffect, useRef } from "react";
+import React from "react";
 
 import LabelMixin from "../../mixins/LabelMixin";
 import Registry from "../../core/Registry";
@@ -52,69 +52,6 @@ const ModelAttrs = types
       const states = self.states();
       return states && states.length > 0;
     },
-
-    get hasLabels() {
-      return self.children && self.children.some(child => child.type === 'label');
-    },
-
-    get isReady() {
-      // Verifica che il componente sia pronto per la selezione
-      return self.children && self.children.length > 0 && self.annotation;
-    },
-  }))
-  .volatile(() => ({
-    _selectionInitialized: false,
-  }))
-  .actions((self) => ({
-    afterCreate() {
-      // Non fare nulla qui - la selezione verrà gestita nel componente React
-    },
-    
-    initializeSelection() {
-      // Previeni inizializzazioni multiple
-      if (self._selectionInitialized) return;
-      
-      // Verifica che ci siano label disponibili
-      if (!self.hasLabels) return;
-      
-      // Se c'è già una selezione, non fare nulla
-      if (self.selectedLabels && self.selectedLabels.length > 0) {
-        self._selectionInitialized = true;
-        return;
-      }
-
-      const storageKey = `keypointlabel_last_selected_${self.name}`;
-      const lastSelectedValue = localStorage.getItem(storageKey);
-      
-      let labelToSelect = null;
-      
-      // Prova a trovare l'ultima label selezionata
-      if (lastSelectedValue) {
-        labelToSelect = self.children.find(child => 
-          child.type === 'label' && child.value === lastSelectedValue
-        );
-      }
-      
-      // Se non trovata, prendi la prima disponibile
-      if (!labelToSelect) {
-        labelToSelect = self.children.find(child => child.type === 'label');
-      }
-      
-      // Seleziona la label
-      if (labelToSelect && labelToSelect.setSelected) {
-        labelToSelect.setSelected(true);
-        self._selectionInitialized = true;
-      }
-    },
-
-    resetSelectionState() {
-      self._selectionInitialized = false;
-    },
-    
-    onLabelSelected(labelValue) {
-      const storageKey = `keypointlabel_last_selected_${self.name}`;
-      localStorage.setItem(storageKey, labelValue);
-    },
   }));
 
 const Composition = types.compose(
@@ -129,66 +66,282 @@ const Composition = types.compose(
 
 const KeyPointLabelsModel = types.compose("KeyPointLabelsModel", Composition);
 
-const HtxKeyPointLabels = observer(({ item }) => {
-  const initializationAttempted = useRef(false);
-  const lastTaskId = useRef(null);
-
-  useEffect(() => {
-    const currentTaskId = item.annotation?.task?.id;
-    
-    // Reset quando cambia il task
-    if (currentTaskId !== lastTaskId.current) {
-      initializationAttempted.current = false;
-      lastTaskId.current = currentTaskId;
-      if (item.resetSelectionState) {
-        item.resetSelectionState();
-      }
+// Funzione per attivare sempre SAM KeyPoint
+const activateKeypointSam = () => {
+  try {
+    const keypointSamTool = document.querySelector('button[aria-label="key-point-tool"].lsf-tool_smart');
+    if (keypointSamTool) {
+      console.log('Activating KeyPoint SAM tool');
+      keypointSamTool.click();
+      return true;
     }
+    console.warn('KeyPoint SAM tool not found');
+    return false;
+  } catch (error) {
+    console.error('Error activating KeyPoint SAM:', error);
+    return false;
+  }
+};
 
-    // Esci se non siamo pronti
-    if (!item.isReady) return;
+// Componente KeyPointLabels che attiva sempre SAM
+// ==========================================
+// FIX COMPLETO per KeyPointLabels.js
+// ==========================================
 
-    // Esci se abbiamo già tentato l'inizializzazione per questo task
-    if (initializationAttempted.current) return;
+const SamKeyPointLabels = ({ item }) => {
+  const containerRef = React.useRef(null);
+  const activationTimeoutRef = React.useRef(null);
 
-    // Funzione per tentare l'inizializzazione
-    const attemptInitialization = () => {
-      if (!item.selectedLabels || item.selectedLabels.length === 0) {
-        if (item.initializeSelection) {
-          item.initializeSelection();
-          initializationAttempted.current = true;
+  // Funzione per trovare tutte le label nell'interfaccia (globali)
+  const getAllLabelsInOrder = () => {
+    // Trova tutti i gruppi di label nell'ordine in cui appaiono nel DOM
+    const allLabelGroups = document.querySelectorAll('[class*="labels"], .lsf-labels');
+    const allLabels = [];
+    
+    allLabelGroups.forEach(group => {
+      const labelsInGroup = group.querySelectorAll('.lsf-label');
+      labelsInGroup.forEach(label => allLabels.push(label));
+    });
+    
+    // Se non troviamo gruppi, cerca tutte le label direttamente
+    if (allLabels.length === 0) {
+      const directLabels = document.querySelectorAll('.lsf-label');
+      directLabels.forEach(label => allLabels.push(label));
+    }
+    
+    console.log(`📋 Found ${allLabels.length} total labels in interface:`, 
+                allLabels.map((label, index) => ({
+                  index: index + 1,
+                  text: label.textContent?.trim(),
+                  isKeyPoint: label.closest('[class*="keypoint"]') !== null,
+                  group: label.closest('[class*="labels"]')?.className || 'unknown'
+                })));
+    
+    return allLabels;
+  };
+
+  // Funzione per verificare se una label appartiene al gruppo KeyPoint
+  const isKeyPointLabel = (label) => {
+    const ourContainer = containerRef.current;
+    if (!ourContainer) return false;
+    
+    // Verifica se la label è nel nostro container
+    const isInOurContainer = ourContainer.contains(label);
+    
+    // Verifica anche tramite attributi o classi del parent
+    const isKeyPointByContext = label.closest('[class*="keypoint"]') !== null ||
+                               label.closest('[data-type*="keypoint"]') !== null;
+    
+    console.log(`🔍 Checking if label "${label.textContent?.trim()}" is KeyPoint:`, {
+      isInOurContainer,
+      isKeyPointByContext,
+      result: isInOurContainer || isKeyPointByContext
+    });
+    
+    return isInOurContainer || isKeyPointByContext;
+  };
+
+  // Funzione di attivazione SAM
+  const activateKeypointSam = React.useCallback(async () => {
+    console.log('🚀 Activating KeyPoint SAM...');
+    
+    const samSelectors = [
+      'button[aria-label="key-point-tool"].lsf-tool_smart',
+      'button.lsf-tool_smart[aria-label*="key-point"]',
+      'button.lsf-tool_smart[aria-label*="keypoint"]',
+      '.lsf-tool_smart:has([aria-label*="key-point"])',
+      'button[data-tool*="keypoint"].lsf-tool_smart',
+      '.lsf-tool.lsf-tool_smart[aria-label*="KeyPoint"]'
+    ];
+    
+    for (const selector of samSelectors) {
+      try {
+        const samTool = document.querySelector(selector);
+        if (samTool) {
+          console.log(`✅ Found SAM tool: ${selector}`);
+          
+          const isActive = samTool.classList.contains('lsf-tool_active') || 
+                          samTool.getAttribute('aria-pressed') === 'true';
+          
+          if (isActive) {
+            console.log('✅ SAM tool already active');
+            return true;
+          }
+          
+          console.log('🔄 Clicking SAM tool...');
+          samTool.click();
+          
+          setTimeout(() => {
+            const nowActive = samTool.classList.contains('lsf-tool_active') || 
+                             samTool.getAttribute('aria-pressed') === 'true';
+            console.log(nowActive ? '✅ SAM activated!' : '❌ SAM activation failed');
+          }, 100);
+          
           return true;
         }
-      } else {
-        // Se c'è già una selezione, marca come completato
-        initializationAttempted.current = true;
-        return true;
-      }
-      return false;
-    };
-
-    // Primo tentativo immediato
-    if (attemptInitialization()) return;
-
-    // Se fallisce, usa un singolo retry con breve delay
-    const retryTimeout = setTimeout(() => {
-      attemptInitialization();
-    }, 50);
-
-    return () => clearTimeout(retryTimeout);
-  }, [item, item.isReady, item.annotation?.task?.id]);
-
-  // Salva la selezione quando cambia
-  useEffect(() => {
-    if (item.selectedLabels && item.selectedLabels.length > 0) {
-      const selectedLabel = item.selectedLabels[0];
-      if (selectedLabel && selectedLabel.value && item.onLabelSelected) {
-        item.onLabelSelected(selectedLabel.value);
+      } catch (e) {
+        console.log(`❌ Selector failed: ${selector}`);
       }
     }
-  }, [item.selectedLabels, item]);
+    
+    console.warn('❌ No SAM tool found');
+    return false;
+  }, []);
 
-  return <HtxLabels item={item} />;
+  // Event listener per keybinding GLOBALI
+  React.useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key >= '1' && event.key <= '9' && 
+          !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey) {
+        
+        const keyNumber = parseInt(event.key);
+        console.log(`🎯 Global keybinding ${keyNumber} pressed`);
+        
+        // Trova tutte le label nell'interfaccia
+        const allLabels = getAllLabelsInOrder();
+        
+        if (keyNumber > allLabels.length) {
+          console.log(`❌ Keybinding ${keyNumber} out of range (${allLabels.length} total labels)`);
+          return;
+        }
+        
+        const targetLabel = allLabels[keyNumber - 1];
+        
+        if (!targetLabel) {
+          console.log(`❌ No label found for keybinding ${keyNumber}`);
+          return;
+        }
+        
+        console.log(`📍 Keybinding ${keyNumber} targets label: "${targetLabel.textContent?.trim()}"`);
+        
+        // Verifica se questa label appartiene al gruppo KeyPoint
+        if (isKeyPointLabel(targetLabel)) {
+          console.log(`✅ This is a KeyPoint label! Will activate SAM when selected.`);
+          
+          // Monitora quando questa label viene selezionata
+          const checkSelectionAndActivate = (attempt = 1, maxAttempts = 5) => {
+            const isSelected = targetLabel.classList.contains('lsf-label_selected');
+            
+            console.log(`🔍 Check ${attempt}/${maxAttempts}: Label selected = ${isSelected}`);
+            
+            if (isSelected) {
+              console.log(`🎉 KeyPoint label "${targetLabel.textContent?.trim()}" is now selected!`);
+              console.log(`🚀 Activating SAM for KeyPoint group: ${item.name}`);
+              
+              // Attiva SAM con un piccolo delay per sicurezza
+              setTimeout(() => {
+                activateKeypointSam();
+              }, 150);
+              
+              return true;
+            }
+            
+            if (attempt < maxAttempts) {
+              const delay = 50 * attempt; // Delay progressivo
+              console.log(`⏳ Label not selected yet, retrying in ${delay}ms...`);
+              setTimeout(() => {
+                checkSelectionAndActivate(attempt + 1, maxAttempts);
+              }, delay);
+            } else {
+              console.log(`⚠️ Label never got selected after ${maxAttempts} attempts`);
+              // Prova comunque ad attivare SAM nel caso sia un timing issue
+              console.log(`🔄 Attempting SAM activation anyway...`);
+              activateKeypointSam();
+            }
+            
+            return false;
+          };
+          
+          // Inizia il controllo
+          checkSelectionAndActivate();
+          
+        } else {
+          console.log(`ℹ️ Not a KeyPoint label (belongs to different group), ignoring.`);
+        }
+      }
+    };
+
+    console.log(`🎧 KeyPoint group "${item.name}" listening for global keybindings...`);
+    document.addEventListener('keydown', handleKeyDown, { passive: true });
+
+    return () => {
+      console.log(`🔇 KeyPoint group "${item.name}" stopped listening for keybindings`);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [item.name, activateKeypointSam]);
+
+  // Listener per i click diretti sulle nostre label
+  React.useEffect(() => {
+    const handleLabelClick = (event) => {
+      const labelElement = event.target.closest('.lsf-label');
+      if (!labelElement) return;
+      
+      const ourContainer = containerRef.current;
+      if (!ourContainer || !ourContainer.contains(labelElement)) {
+        return;
+      }
+      
+      console.log(`🖱️ Direct click on KeyPoint label: "${labelElement.textContent?.trim()}"`);
+      console.log(`🚀 Activating SAM for group: ${item.name}`);
+      
+      setTimeout(() => {
+        activateKeypointSam();
+      }, 100);
+    };
+
+    document.addEventListener('click', handleLabelClick, true);
+
+    return () => {
+      document.removeEventListener('click', handleLabelClick, true);
+    };
+  }, [item.name, activateKeypointSam]);
+
+  // Debug helper component (rimuovi in produzione)
+  const DebugHelper = () => (
+    <div style={{ 
+      position: 'fixed', 
+      top: '10px', 
+      right: '10px', 
+      zIndex: 9999,
+      backgroundColor: '#333',
+      color: 'white',
+      padding: '10px',
+      fontSize: '12px',
+      maxWidth: '300px'
+    }}>
+      <div><strong>KeyPoint Group:</strong> {item.name}</div>
+      <div><strong>Our Labels:</strong> {containerRef.current?.querySelectorAll('.lsf-label').length || 0}</div>
+      <button 
+        onClick={() => {
+          const allLabels = getAllLabelsInOrder();
+          console.log('=== ALL LABELS DEBUG ===');
+          allLabels.forEach((label, index) => {
+            console.log(`${index + 1}: "${label.textContent?.trim()}" - KeyPoint: ${isKeyPointLabel(label)}`);
+          });
+        }}
+        style={{ marginTop: '5px', fontSize: '10px' }}
+      >
+        Debug All Labels
+      </button>
+      <button 
+        onClick={activateKeypointSam}
+        style={{ marginTop: '5px', marginLeft: '5px', fontSize: '10px' }}
+      >
+        Test SAM
+      </button>
+    </div>
+  );
+
+  return (
+    <div ref={containerRef}>
+      <HtxLabels item={item} />
+      {process.env.NODE_ENV === 'development' && <DebugHelper />}
+    </div>
+  );
+};
+
+const HtxKeyPointLabels = observer(({ item }) => {
+  return <SamKeyPointLabels item={item} />;
 });
 
 Registry.addTag("keypointlabels", KeyPointLabelsModel, HtxKeyPointLabels);

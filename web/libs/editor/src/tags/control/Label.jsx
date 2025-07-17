@@ -62,9 +62,50 @@ const TagAttrs = types.model({
   selectedcolor: types.optional(customTypes.color, "#ffffff"),
   granularity: types.maybeNull(types.enumeration(["symbol", "word", "sentence", "paragraph"])),
   groupcancontain: types.maybeNull(types.string),
-  // childrencheck: types.optional(types.enumeration(["any", "all"]), "any")
   html: types.maybeNull(types.string),
 });
+
+// Store globale per ricordare l'ultima selezione con gestione sicura
+const globalLastSelection = {
+  get labelValue() {
+    try {
+      return localStorage.getItem('lastSelectedLabel');
+    } catch (e) {
+      return this._labelValue || null;
+    }
+  },
+  set labelValue(value) {
+    try {
+      if (value) {
+        localStorage.setItem('lastSelectedLabel', value);
+      } else {
+        localStorage.removeItem('lastSelectedLabel');
+      }
+    } catch (e) {
+      this._labelValue = value;
+    }
+  },
+  get labelGroupName() {
+    try {
+      return localStorage.getItem('lastSelectedLabelGroup');
+    } catch (e) {
+      return this._labelGroupName || null;
+    }
+  },
+  set labelGroupName(value) {
+    try {
+      if (value) {
+        localStorage.setItem('lastSelectedLabelGroup', value);
+      } else {
+        localStorage.removeItem('lastSelectedLabelGroup');
+      }
+    } catch (e) {
+      this._labelGroupName = value;
+    }
+  },
+  _labelValue: null,
+  _labelGroupName: null,
+};
 
 const Model = types
   .model({
@@ -98,9 +139,7 @@ const Model = types
 
     usedAlready() {
       const regions = self.annotation.regionStore.regions;
-      // count all the usages among all the regions
       const used = regions.reduce((s, r) => s + r.hasLabel(self.value), 0);
-
       return used;
     },
 
@@ -108,26 +147,47 @@ const Model = types
       if (!self.maxUsages) return true;
       return self.usedAlready() + count <= self.maxUsages;
     },
+
+    // Controlla se questa label era l'ultima selezionata globalmente
+    wasLastSelected() {
+      return globalLastSelection.labelValue === self.value && 
+             globalLastSelection.labelGroupName === self.parent?.name;
+    },
   }))
   .actions((self) => ({
     setEmpty() {
       self.isEmpty = true;
     },
+
+    // Salva questa selezione come ultima selezione globale
+    saveAsLastSelection() {
+      globalLastSelection.labelValue = self.value;
+      globalLastSelection.labelGroupName = self.parent?.name;
+    },
+
+    // Tenta di ripristinare l'ultima selezione
+    tryRestoreLastSelection() {
+      if (self.wasLastSelected() && !self.selected && !self.initiallySelected) {
+        if (self.parent && !self.annotation?.isReadOnly()) {
+          try {
+            if (self.parent.shouldBeUnselected) {
+              self.parent.unselectAll();
+            }
+            self.setSelected(true);
+          } catch (error) {
+            console.warn('Error restoring last selection:', error);
+          }
+        }
+      }
+    },
+
     /**
      * Select label
      */
     toggleSelected() {
       let sameObjectSelectedRegions = [];
 
-      // here we check if you click on label from labels group
-      // connected to the region on the same object tag that is
-      // right now highlighted, and if that region is readonly
-
       if (self.annotation.selectedDrawingRegions.length > 0) {
-        /*  here we are validating if we are drawing a new region or if region is already closed
-          the way that new drawing region and a finished regions work is similar, but new drawing region
-          doesn't visualy select the polygons when you are drawing.
-       */
         sameObjectSelectedRegions = self.annotation.selectedDrawingRegions.filter((region) => {
           return region.parent?.name === self.parent?.toname;
         });
@@ -141,12 +201,10 @@ const Model = types
         return !region.isReadOnly();
       });
 
-      // one more check if that label can be selected
       if (self.annotation.isReadOnly()) return;
 
       if (sameObjectSelectedRegions.length > 0 && affectedRegions.length === 0) return;
 
-      // don't select if it can not be used
       if (
         !!affectedRegions.length &&
         !self.selected &&
@@ -158,13 +216,7 @@ const Model = types
 
       const labels = self.parent;
 
-      // check if there is a region selected and if it is and user
-      // is changing the label we need to make sure that region is
-      // not going to end up without labels at all
       const applicableRegions = affectedRegions.filter((region) => {
-        // if that's the only selected label, the only labelset assigned to region,
-        // and we are trying to unselect it, then don't allow that
-        // (except for rare labelsets that allow empty labels)
         if (
           labels.selectedLabels.length === 1 &&
           self.selected &&
@@ -173,24 +225,17 @@ const Model = types
         )
           return false;
 
-        // @todo rewrite this check and add more named vars
-        // @todo select only related specific labels
-        // @todo unselect any label, but only if that won't leave region without specific labels!
-        // @todo but check for regions created by tools
-        // @todo lot of tests!
-        if (self.selected) return true; // we are unselecting a label which is always ok
-        if (labels.type === "labels") return true; // universal labels are fine to select
-        if (labels.type.includes(region.type.replace(/region$/, ""))) return true; // region type is in label type
-        if (labels.type.includes(region.results[0].type)) return true; // any result type of the region is in label type
+        if (self.selected) return true;
+        if (labels.type === "labels") return true;
+        if (labels.type.includes(region.type.replace(/region$/, ""))) return true;
+        if (labels.type.includes(region.results[0].type)) return true;
 
         return false;
       });
 
       if (sameObjectSelectedRegions.length > 0 && applicableRegions.length === 0) return;
 
-      // if we are going to select label and it would be the first in this labels group
       if (!labels.selectedLabels.length && !self.selected) {
-        // unselect other tools if they exist and selected
         const manager = ToolsManager.getInstance({ name: self.parent.toname });
         const tool = Object.values(self.parent?.tools || {})[0];
 
@@ -206,24 +251,14 @@ const Model = types
 
       if (self.isEmpty) {
         const selected = self.selected;
-
         labels.unselectAll();
         self.setSelected(!selected);
       } else {
-        /**
-         * Multiple
-         */
         if (!labels.shouldBeUnselected) {
           self.setSelected(!self.selected);
         }
 
-        /**
-         * Single
-         */
         if (labels.shouldBeUnselected) {
-          /**
-           * Current not selected
-           */
           if (!self.selected) {
             labels.unselectAll();
             self.setSelected(!self.selected);
@@ -231,6 +266,11 @@ const Model = types
             labels.unselectAll();
           }
         }
+      }
+
+      // Salva la selezione corrente come ultima selezione globale
+      if (self.selected) {
+        self.saveAsLastSelection();
       }
 
       if (labels.allowempty && !self.isEmpty) {
@@ -247,7 +287,6 @@ const Model = types
         if (region) {
           region.setValue(self.parent);
           region.notifyDrawingFinished();
-          // hack to trigger RichText re-render the region
           region.updateSpans?.();
         }
       });
@@ -257,12 +296,11 @@ const Model = types
       self.visible = val;
     },
 
-    /**
-     *
-     * @param {boolean} value
-     */
     setSelected(value) {
       self.selected = value;
+      if (value) {
+        self.saveAsLastSelection();
+      }
     },
 
     onHotKey() {
@@ -284,6 +322,15 @@ const Model = types
 
     afterCreate() {
       self._updateBackgroundColor(self._value || self.value);
+      
+      // Tenta di ripristinare l'ultima selezione con diversi tentativi
+      setTimeout(() => {
+        self.tryRestoreLastSelection();
+      }, 100);
+      
+      setTimeout(() => {
+        self.tryRestoreLastSelection();
+      }, 500);
     },
 
     updateValue(store) {

@@ -28,12 +28,25 @@ const SettingsModel = types
     enableLabelTooltips: types.optional(types.boolean, true),
 
     /**
-     * Keep label selected after creating a region
+     * Keep label selected after creating a region// Leggi le impostazioni attuali
+const settings = JSON.parse(localStorage.getItem('labelStudio:settings') || '{}');
+console.log('Current settings:', settings);
+
+// Modifica i valori
+settings.continuousLabeling = true;
+settings.selectAfterCreate = true;
+
+// Salva le modifiche
+localStorage.setItem('labelStudio:settings', JSON.stringify(settings));
+console.log('Settings updated in localStorage');
+
+// Ricarica la pagina
+location.reload();
      */
-    continuousLabeling: false,
+    continuousLabeling: true,
 
     // select regions after creating them
-    selectAfterCreate: false,
+    selectAfterCreate: true,
 
     fullscreen: types.optional(types.boolean, false),
 
@@ -119,6 +132,12 @@ const SettingsModel = types
             self[obj] = EditorSettings[obj].defaultValue;
           }
         });
+      }
+      if (self.continuousLabeling === undefined || self.continuousLabeling === false) {
+        self.continuousLabeling = true;
+      }
+      if (self.selectAfterCreate === undefined || self.selectAfterCreate === false) {
+        self.selectAfterCreate = true;
       }
 
       // capture changes and save it

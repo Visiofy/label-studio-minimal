@@ -47,7 +47,20 @@ export const Toolbar = inject("store")(
       <ToolbarProvider value={{ expanded, alignment }}>
         <Block ref={(el) => setToolbar(el)} name="toolbar" mod={{ alignment, expanded }}>
           {Object.entries(toolGroups).map(([name, tools], i) => {
-            const visibleTools = tools.filter((t) => t.viewClass);
+            const visibleTools = tools.filter((t) => {
+              // Lista degli strumenti da nascondere con i nomi esatti dalla console
+              const hiddenTools = [
+                'brushtool',
+                'keypointtool', 
+                'rectangletool',
+                'rectangle3pointtool'
+                // Note: 'point' non appare nella lista, probabilmente è KeyPointTool
+              ];
+              const toolName = t.toolName?.toLowerCase() || '';
+              
+              // Mostra solo gli strumenti che NON sono nella lista dei nascosti
+              return t.viewClass && !hiddenTools.includes(toolName);
+            });
 
             return visibleTools.length ? (
               <Elem name="group" key={`toolset-${name}-${i}`}>
@@ -61,6 +74,7 @@ export const Toolbar = inject("store")(
               </Elem>
             ) : null;
           })}
+          {/* Auto-detect riattivato */}
           {store.autoAnnotation && <SmartTools tools={smartTools} />}
         </Block>
       </ToolbarProvider>

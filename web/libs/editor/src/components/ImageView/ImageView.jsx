@@ -33,7 +33,88 @@ import {
 import { Pagination } from "../../common/Pagination/Pagination";
 import { Image } from "./Image";
 
+
 Konva.showWarnings = false;
+const IconKeypointsTool = ({ style = {}, ...props }) => (
+    <svg style={{ width: '20px', height: '20px', ...style }} viewBox="0 0 24 24" {...props}>
+      <circle cx="12" cy="12" r="4" fill="currentColor" />
+      <circle cx="6" cy="6" r="2" fill="currentColor" />
+      <circle cx="18" cy="6" r="2" fill="currentColor" />
+      <circle cx="6" cy="18" r="2" fill="currentColor" />
+      <circle cx="18" cy="18" r="2" fill="currentColor" />
+    </svg>
+  );
+
+  const IconKeypointsToolSmart = ({ style = {}, ...props }) => (
+    <svg style={{ width: '20px', height: '20px', ...style }} viewBox="0 0 24 24" {...props}>
+      <circle cx="12" cy="12" r="4" fill="currentColor" />
+      <circle cx="6" cy="6" r="2" fill="currentColor" />
+      <circle cx="18" cy="6" r="2" fill="currentColor" />
+      <circle cx="6" cy="18" r="2" fill="currentColor" />
+      <circle cx="18" cy="18" r="2" fill="currentColor" />
+      <path d="m20 8-2-2-6 6-2-2-2 2 4 4 8-8z" fill="#00ff00" opacity="0.7" />
+    </svg>
+  );
+
+  const IconBrushTool = ({ style = {}, ...props }) => (
+    <svg style={{ width: '20px', height: '20px', ...style }} viewBox="0 0 24 24" {...props}>
+      <path d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3z" fill="currentColor" />
+      <path d="M20.71 4.63l-1.34-1.34c-.39-.39-1.02-.39-1.41 0L9 12.25 11.75 15l8.96-8.96c.39-.39.39-1.02 0-1.41z" fill="currentColor" />
+    </svg>
+  );
+
+  const IconBrushToolSmart = ({ style = {}, ...props }) => (
+    <svg style={{ width: '20px', height: '20px', ...style }} viewBox="0 0 24 24" {...props}>
+      <path d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3z" fill="currentColor" />
+      <path d="M20.71 4.63l-1.34-1.34c-.39-.39-1.02-.39-1.41 0L9 12.25 11.75 15l8.96-8.96c.39-.39.39-1.02 0-1.41z" fill="currentColor" />
+      <path d="m20 8-2-2-6 6-2-2-2 2 4 4 8-8z" fill="#00ff00" opacity="0.7" />
+    </svg>
+  );
+
+  const IconRectangleTool = ({ style = {}, ...props }) => (
+    <svg style={{ width: '20px', height: '20px', ...style }} viewBox="0 0 24 24" {...props}>
+      <rect x="3" y="5" width="18" height="14" fill="none" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+
+  const IconRectangleToolSmart = ({ style = {}, ...props }) => (
+    <svg style={{ width: '20px', height: '20px', ...style }} viewBox="0 0 24 24" {...props}>
+      <rect x="3" y="5" width="18" height="14" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="m20 8-2-2-6 6-2-2-2 2 4 4 8-8z" fill="#00ff00" opacity="0.7" />
+    </svg>
+  );
+
+  const ToolIcon = ({ toolName, tagSelected, isSmart = false }) => {
+    const getToolIconComponent = (toolName, isSmart) => {
+      if (!toolName) return null;
+      
+      const name = toolName.toLowerCase();
+      
+      if (name.includes('keypoint')) {
+        return isSmart ? IconKeypointsToolSmart : IconKeypointsTool;
+      }
+      if (name.includes('brush')) {
+        return isSmart ? IconBrushToolSmart : IconBrushTool;
+      }
+      if (name.includes('rectangle') || name.includes('rect')) {
+        return isSmart ? IconRectangleToolSmart : IconRectangleTool;
+      }
+      
+      return null;
+    };
+
+    const IconComponent = getToolIconComponent(toolName, isSmart);
+    if (!IconComponent) return null;
+
+    return (
+      <IconComponent 
+        style={{ 
+          color: tagSelected ? '#1890ff' : '#999',
+          transition: 'color 0.2s ease'
+        }} 
+      />
+    );
+  };
 
 const hotkeys = Hotkey("Image");
 const imgDefaultProps = {};
@@ -103,9 +184,6 @@ const SELECTION_COLOR = "#40A9FF";
 const SELECTION_SECOND_COLOR = "white";
 const SELECTION_DASH = [3, 3];
 
-/**
- * Multiple selected regions when transform is unavailable — just a box with anchors
- */
 const SelectionBorders = observer(({ item, selectionArea }) => {
   const { selectionBorders: bbox } = selectionArea;
 
@@ -137,6 +215,7 @@ const SelectionBorders = observer(({ item, selectionArea }) => {
       ]
     : [];
   const ANCHOR_SIZE = isFF(FF_DEV_3793) ? 6 / item.stageScale : 6;
+  
 
   return (
     <>
@@ -173,9 +252,6 @@ const SelectionBorders = observer(({ item, selectionArea }) => {
   );
 });
 
-/**
- * Selection area during selection — dashed rect
- */
 const SelectionRect = observer(({ item }) => {
   const { x, y, width, height } = item.onCanvasRect;
 
@@ -347,11 +423,6 @@ const SelectionLayer = observer(({ item, selectionArea }) => {
   );
 });
 
-/**
- * Previously regions rerendered on window resize because of size recalculations,
- * but now they are rerendered just by mistake because of unmemoized `splitRegions` in main render.
- * This is temporary solution to pass in relevant props changed on window resize.
- */
 const Selection = observer(({ item, ...triggeredOnResize }) => {
   const { selectionArea } = item;
 
@@ -435,10 +506,6 @@ const Crosshair = memo(
   }),
 );
 
-/**
- * Component that creates an overlay on top
- * of the image to support Magic Wand tool
- */
 const CanvasOverlay = observer(({ item }) => {
   return (
     <canvas
@@ -453,7 +520,6 @@ const CanvasOverlay = observer(({ item }) => {
 
 export default observer(
   class ImageView extends Component {
-    // stored position of canvas before creating region
     canvasX;
     canvasY;
     lastOffsetWidth = -1;
@@ -461,6 +527,7 @@ export default observer(
     state = {
       imgStyle: {},
       pointer: [0, 0],
+      selectedTag: null
     };
 
     imageRef = createRef();
@@ -471,12 +538,76 @@ export default observer(
     skipNextClick = false;
     skipNextMouseUp = false;
     mouseDownPoint = null;
-
+    
+    selectedTagFromDOM = null;
+    lastSelectedTag = null;
+    lastGlobalSelectedTag = null;
+    static isFirstAppAccess = true;
     constructor(props) {
       super(props);
 
       if (typeof props.item.smoothing === "boolean") props.store.settings.setSmoothing(props.item.smoothing);
     }
+
+    updateSelectedTag = () => {
+      try {
+        const selectedLabels = Array.from(document.querySelectorAll('.lsf-label_selected'));
+        const selectedTag = selectedLabels.find(el => el.querySelector('.lsf-label__text'));
+        const currentTagName = selectedTag ? selectedTag.querySelector('.lsf-label__text').textContent : null;
+        
+        if (currentTagName !== null) {
+          // Aggiorna sia la variabile locale che quella globale
+          this.lastSelectedTag = currentTagName;
+          ImageView.lastGlobalSelectedTag = currentTagName;
+          // Una volta selezionato un label, non è più il primo accesso
+          ImageView.isFirstAppAccess = false;
+        }
+        
+        // Logica per determinare cosa mostrare:
+        let tagToShow;
+        if (ImageView.isFirstAppAccess) {
+          // Primo accesso: mostra null (quindi "Seleziona un label")
+          tagToShow = null;
+        } else {
+          // Accessi successivi: mostra il label corrente o l'ultimo selezionato
+          tagToShow = currentTagName || ImageView.lastGlobalSelectedTag;
+        }
+        
+        if (this.selectedTagFromDOM !== tagToShow) {
+          this.selectedTagFromDOM = tagToShow;
+          this.setState(prevState => ({
+            ...prevState,
+            selectedTag : tagToShow
+          }));
+        }
+      } catch (error) {
+        console.error('Error in updateSelectedTag:', error);
+      }
+    };
+
+    handleLabelClick = (e) => {
+      if (e.target.closest('.lsf-label')) {
+        setTimeout(this.updateSelectedTag, 50);
+      }
+    };
+
+    handleKeyDown = (e) => {
+      if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        setTimeout(this.updateSelectedTag, 50);
+      }
+    };
+
+    waitForLabelsAndUpdate = () => {
+      const checkForLabels = () => {
+        const labels = document.querySelectorAll('.lsf-label');
+        if (labels.length > 0) {
+          this.updateSelectedTag();
+        } else {
+          setTimeout(checkForLabels, 100);
+        }
+      };
+      checkForLabels();
+    };
 
     handleOnClick = (e) => {
       const { item } = this.props;
@@ -493,9 +624,6 @@ export default observer(
       const { offsetX: x, offsetY: y } = evt;
 
       if (isFF(FF_LSDV_4930)) {
-        // Konva can trigger click even on simple mouseup
-        // You can try drag and drop interaction here https://konvajs.org/docs/events/Stage_Events.html and check the console
-        // So here is false trigger preventing
         if (
           !this.mouseDownPoint ||
           Math.abs(this.mouseDownPoint.x - x) > 0.01 ||
@@ -523,7 +651,6 @@ export default observer(
           handleDeselection();
         }
         handleDeferredMouseDownCallback();
-        // mousedown should be called only once especially if it is called from mousemove interaction.
         this.handleDeferredMouseDown = null;
       };
       this.resetDeferredClickTimeout();
@@ -556,19 +683,14 @@ export default observer(
 
       const handleMouseDown = () => {
         if (e.evt.button === 1) {
-          // prevent middle click from scrolling page
           e.evt.preventDefault();
         }
 
         const isRightElementToCatchToolInteractions = (el) => {
-          // It could be ruler ot segmentation
           if (el.nodeType === "Group") {
             if ("ruler" === el?.attrs?.name) {
               return true;
             }
-            // segmentation is specific for Brushes
-            // but click interaction on the region covers the case of the same MoveTool interaction here,
-            // so it should ignore move tool interaction to prevent conflicts
             if (!isMoveTool && "segmentation" === el?.attrs?.name) {
               return true;
             }
@@ -577,7 +699,6 @@ export default observer(
         };
 
         if (
-          // create regions over another regions with Cmd/Ctrl pressed
           item.getSkipInteractions() ||
           e.target === item.stageRef ||
           findClosestParent(e.target, isRightElementToCatchToolInteractions)
@@ -585,7 +706,6 @@ export default observer(
           window.addEventListener("mousemove", this.handleGlobalMouseMove);
           window.addEventListener("mouseup", this.handleGlobalMouseUp);
           const { offsetX: x, offsetY: y } = e.evt;
-          // store the canvas coords for calculations in further events
           const { left, top } = item.containerRef.getBoundingClientRect();
 
           this.canvasX = left;
@@ -636,9 +756,6 @@ export default observer(
       return true;
     };
 
-    /**
-     * Mouse up outside the canvas
-     */
     handleGlobalMouseUp = (e) => {
       window.removeEventListener("mousemove", this.handleGlobalMouseMove);
       window.removeEventListener("mouseup", this.handleGlobalMouseUp);
@@ -662,9 +779,6 @@ export default observer(
       return item.event("mousemove", e, x - this.canvasX, y - this.canvasY);
     };
 
-    /**
-     * Mouse up on Stage
-     */
     handleMouseUp = (e) => {
       const { item } = this.props;
 
@@ -745,20 +859,11 @@ export default observer(
       item.setGridSize(range);
     };
 
-    /**
-     * Handle to zoom
-     */
     handleZoom = (e) => {
-      /**
-       * Disable if user doesn't use ctrl
-       */
       if (e.evt && !e.evt.ctrlKey) {
         return;
       }
       if (e.evt && e.evt.ctrlKey) {
-        /**
-         * Disable scrolling page
-         */
         e.evt.preventDefault();
       }
       if (e.evt) {
@@ -825,7 +930,11 @@ export default observer(
       window.addEventListener("resize", this.onResize);
       this.attachObserver(item.containerRef);
       this.updateReadyStatus();
-
+      
+      document.addEventListener('click', this.handleLabelClick);
+      document.addEventListener('keydown', this.handleKeyDown);
+      this.updateSelectedTag();
+      
       hotkeys.addDescription("shift", "Pan image");
     }
 
@@ -848,13 +957,22 @@ export default observer(
     componentWillUnmount() {
       this.detachObserver();
       window.removeEventListener("resize", this.onResize);
+      
+      document.removeEventListener('click', this.handleLabelClick);
+      document.removeEventListener('keydown', this.handleKeyDown);
 
       hotkeys.removeDescription("shift");
     }
 
-    componentDidUpdate() {
+    componentDidUpdate(prevProps) {
       this.onResize();
       this.updateReadyStatus();
+      
+      if (prevProps?.store?.task !== this.props.store?.task) {
+        this.waitForLabelsAndUpdate();
+      } else {
+        this.updateSelectedTag();
+      }
     }
 
     updateReadyStatus() {
@@ -878,18 +996,10 @@ export default observer(
     render() {
       const { item, store } = this.props;
 
-      // @todo stupid but required check for `resetState()`
-      // when Image tries to render itself after detouching
       if (!isAlive(item)) return null;
-
-      // TODO fix me
       if (!store.task || !item.currentSrc) return null;
 
       const containerStyle = {};
-
-      const containerClassName = styles.container;
-
-      const paginationEnabled = !!item.isMultiItem;
 
       if (getRoot(item).settings.fullscreen === false) {
         containerStyle.maxWidth = item.maxwidth;
@@ -908,138 +1018,197 @@ export default observer(
         styles[`image_position__${item.horizontalalignment}`],
       ];
 
-      const wrapperClasses = [styles.wrapperComponent, item.images.length > 1 ? styles.withGallery : styles.wrapper];
+      const wrapperClasses = [
+        styles.wrapperComponent,
+        item.images.length > 1 ? styles.withGallery : styles.wrapper,
+      ];
 
+      const paginationEnabled = !!item.isMultiItem;
       if (paginationEnabled) wrapperClasses.push(styles.withPagination);
 
-      const [toolsReady, stageLoading] = isFF(FF_LSDV_4583_6) ? [true, false] : [item.hasTools, item.stageWidth <= 1];
+      const [toolsReady, stageLoading] = isFF(FF_LSDV_4583_6)
+        ? [true, false]
+        : [item.hasTools, item.stageWidth <= 1];
 
       const imageIsLoaded = item.imageIsLoaded || !isFF(FF_LSDV_4583_6);
       const isViewingAll = store.annotationStore.viewingAll;
 
+      const selectedTool = item.getToolsManager().findSelectedTool();
+      
       return (
         <ObjectTag item={item} className={wrapperClasses.join(" ")}>
-          {paginationEnabled ? (
-            <div
-              className={styles.pagination}
-              title={isViewingAll ? "Pagination is not supported in View All Annotations" : undefined}
-            >
-              <Pagination
-                size="small"
-                outline={false}
-                align="left"
-                noPadding
-                hotkey={{
-                  prev: "image:prev",
-                  next: "image:next",
-                }}
-                currentPage={item.currentImage + 1}
-                totalPages={item.parsedValueList.length}
-                onChange={(n) => item.setCurrentImage(n - 1)}
-                pageSizeSelectable={false}
-                disabled={isViewingAll}
-              />
-            </div>
-          ) : null}
-
-          <div
-            ref={(node) => {
-              item.setContainerRef(node);
-              this.attachObserver(node);
-            }}
-            className={containerClassName}
-            style={containerStyle}
-          >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', width: "100%" }}>
             <div
               ref={(node) => {
-                this.filler = node;
+                item.setContainerRef(node);
+                this.attachObserver(node);
               }}
-              className={styles.filler}
-              style={{ width: "100%", marginTop: item.fillerHeight }}
-            />
-
-            {isFF(FF_LSDV_4583_6) ? (
-              <Image
-                ref={(ref) => {
-                  item.setImageRef(ref);
-                  this.imageRef.current = ref;
+              className={styles.container}
+              style={containerStyle}
+            >
+              <div
+                ref={(node) => {
+                  this.filler = node;
                 }}
-                usedValue={item.usedValue}
-                imageEntity={item.currentImageEntity}
-                imageTransform={item.imageTransform}
-                updateImageSize={item.updateImageSize}
-                size={item.canvasSize}
-                overlay={<CanvasOverlay item={item} />}
+                className={styles.filler}
+                style={{ width: "100%", marginTop: item.fillerHeight }}
               />
-            ) : (
-              <div className={[styles.frame, ...imagePositionClassnames].join(" ")} style={item.canvasSize}>
-                <img
+
+              {isFF(FF_LSDV_4583_6) ? (
+                <Image
                   ref={(ref) => {
                     item.setImageRef(ref);
                     this.imageRef.current = ref;
                   }}
-                  loading={isFF(FF_DEV_3077) && !item.lazyoff ? "lazy" : "false"}
-                  style={item.imageTransform}
-                  src={item.currentSrc}
-                  onLoad={(e) => {
-                    item.updateImageSize(e);
-                    item.currentImageEntity.setImageLoaded(true);
-                  }}
-                  onError={this.handleError}
-                  crossOrigin={item.imageCrossOrigin}
-                  alt="LS"
+                  usedValue={item.usedValue}
+                  imageEntity={item.currentImageEntity}
+                  imageTransform={item.imageTransform}
+                  updateImageSize={item.updateImageSize}
+                  size={item.canvasSize}
+                  overlay={<CanvasOverlay item={item} />}
                 />
-                <CanvasOverlay item={item} />
-              </div>
-            )}
-            {/* @todo this is dirty hack; rewrite to proper async waiting for data to load */}
-            {stageLoading || !toolsReady ? (
-              <div className={styles.loading}>
-                <LoadingOutlined />
-              </div>
-            ) : imageIsLoaded ? (
-              <EntireStage
-                item={item}
-                crosshairRef={this.crosshairRef}
-                onClick={this.handleOnClick}
-                imagePositionClassnames={imagePositionClassnames}
-                state={this.state}
-                onMouseEnter={() => {
-                  if (this.crosshairRef.current) {
-                    this.crosshairRef.current.updateVisibility(true);
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (this.crosshairRef.current) {
-                    this.crosshairRef.current.updateVisibility(false);
-                  }
-                  const { width: stageWidth, height: stageHeight } = item.canvasSize;
-                  const { offsetX: mouseposX, offsetY: mouseposY } = e.evt;
-                  const newEvent = { ...e };
+              ) : (
+                <div
+                  className={[styles.frame, ...imagePositionClassnames].join(" ")}
+                  style={item.canvasSize}
+                >
+                  <img
+                    ref={(ref) => {
+                      item.setImageRef(ref);
+                      this.imageRef.current = ref;
+                    }}
+                    loading={isFF(FF_DEV_3077) && !item.lazyoff ? "lazy" : "false"}
+                    style={item.imageTransform}
+                    src={item.currentSrc}
+                    onLoad={(e) => {
+                      item.updateImageSize(e);
+                      item.currentImageEntity.setImageLoaded(true);
+                    }}
+                    onError={this.handleError}
+                    crossOrigin={item.imageCrossOrigin}
+                    alt="LS"
+                  />
+                  <CanvasOverlay item={item} />
+                </div>
+              )}
 
-                  if (mouseposX <= 0) {
-                    e.offsetX = 0;
-                  } else if (mouseposX >= stageWidth) {
-                    e.offsetX = stageWidth;
-                  }
+              {stageLoading || !toolsReady ? (
+                <div className={styles.loading}>
+                  <LoadingOutlined />
+                </div>
+              ) : imageIsLoaded ? (
+                <EntireStage
+                  item={item}
+                  crosshairRef={this.crosshairRef}
+                  onClick={this.handleOnClick}
+                  imagePositionClassnames={imagePositionClassnames}
+                  state={this.state}
+                  onMouseEnter={() => {
+                    if (this.crosshairRef.current) {
+                      this.crosshairRef.current.updateVisibility(true);
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (this.crosshairRef.current) {
+                      this.crosshairRef.current.updateVisibility(false);
+                    }
+                    const { width: stageWidth, height: stageHeight } = item.canvasSize;
+                    const { offsetX: mouseposX, offsetY: mouseposY } = e.evt;
+                    const newEvent = { ...e };
 
-                  if (mouseposY <= 0) {
-                    e.offsetY = 0;
-                  } else if (mouseposY >= stageHeight) {
-                    e.offsetY = stageHeight;
-                  }
-                  this.handleMouseMove(newEvent);
-                }}
-                onDragMove={this.updateCrosshair}
-                onMouseDown={this.handleMouseDown}
-                onMouseMove={this.handleMouseMove}
-                onMouseUp={this.handleMouseUp}
-                onWheel={item.zoom ? this.handleZoom : () => {}}
-              />
-            ) : null}
+                    if (mouseposX <= 0) newEvent.offsetX = 0;
+                    else if (mouseposX >= stageWidth) newEvent.offsetX = stageWidth;
+
+                    if (mouseposY <= 0) newEvent.offsetY = 0;
+                    else if (mouseposY >= stageHeight) newEvent.offsetY = stageHeight;
+
+                    this.handleMouseMove(newEvent);
+                  }}
+                  onDragMove={this.updateCrosshair}
+                  onMouseDown={this.handleMouseDown}
+                  onMouseMove={this.handleMouseMove}
+                  onMouseUp={this.handleMouseUp}
+                  onWheel={item.zoom ? this.handleZoom : () => {}}
+                />
+              ) : null}
+            </div>
+
+            <div style={{
+              width: "200px",
+              backgroundColor: '#f8f9fa',
+              border: '1px solid #ccc',
+              borderRadius: '8px',
+              padding: '10px',
+              fontFamily: 'sans-serif',
+              overflow: 'auto',
+            }}>
+              <h4 style={{ marginTop: 0 }}>Info Selezione</h4>
+              
+              {/* CAMBIA QUESTA RIGA: */}
+              {this.state.selectedTag === null ? (
+                <div style={{ 
+                  textAlign: 'center', 
+                  color: '#666', 
+                  fontStyle: 'italic',
+                  padding: '20px 0'
+                }}>
+                  Seleziona un label
+                </div>
+              ) : (
+                <>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    marginBottom: '10px',
+                    gap: '8px'
+                  }}>
+                    
+                    <div style={{ 
+                      width: '24px', 
+                      height: '24px', 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid #ddd', 
+                      borderRadius: '4px', 
+                      backgroundColor: 'white',
+                      padding: '2px'
+                    }}>
+                      <ToolIcon 
+                        toolName={selectedTool?.fullName === 'KeyPointTool-dynamic' ? 'KeyPointTool' : selectedTool?.fullName}
+                        tagSelected={!!this.state.selectedTag}
+                        isSmart={selectedTool?.fullName?.includes('-dynamic') || selectedTool?.dynamic}
+                      />
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#666' }}>
+                      {selectedTool?.fullName === 'KeyPointTool-dynamic' ? 'KeyPoint' : 
+                      selectedTool?.fullName?.replace('Tool', '').replace('-dynamic', '') || 'Nessuno'}
+                      {(selectedTool?.fullName?.includes('-dynamic') || selectedTool?.dynamic) && (
+                        <span style={{ color: '#00aa00', fontWeight: 'bold' }}> (SAM)</span>
+                      )}
+                    </span>
+                  </div>
+
+                  <div style={{ marginBottom: '8px' }}>
+                    {/* CAMBIA ANCHE QUESTA RIGA: */}
+                    {this.state.selectedTag}
+                  </div>
+
+                  <div style={{ 
+                    fontSize: '11px', 
+                    color: this.state.selectedTag ? '#4CAF50' : '#FF9800',
+                    fontWeight: 'bold'
+                  }}>
+                    {/* E ANCHE QUESTA: */}
+                    {this.state.selectedTag ? '✓ Pronto per annotare' : '⚠ Seleziona un tag'}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {toolsReady && imageIsLoaded && this.renderTools()}
+
           {item.images.length > 1 && (
             <div className={styles.gallery}>
               {item.images.map((src, i) => (
@@ -1150,7 +1319,6 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
 
   return (
     <>
-      {/* Hack to keep stage in place when there's no regions */}
       {regions.length === 0 && (
         <Layer>
           <Line points={[0, 0, 0, 1]} stroke="rgba(0,0,0,0)" />
