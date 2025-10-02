@@ -149,42 +149,10 @@ export const Breadcrumbs = () => {
           </Elem>
         ) : href && !isLastItem ? (
           <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>
-            {isInternal ? (
-              <NavLink 
-                to={href} 
-                data-external={true}
-                onClick={(e) => {
-                  // Se il breadcrumb è "Projects" e il link è "/projects", redirigi a "/projects/1"
-                  if (item.title === "Projects" && href === "/projects") {
-                    e.preventDefault();
-                    window.location.href = "/projects/1";
-                  }
-                  if (item.title === "Settings"){
-                    e.preventDefault();
-                    window.location.href = "/projects/1";
-                  }
-                }}
-              >
-                {title}
-              </NavLink>
-            ) : (
-              <a 
-                href={absoluteURL(href)}
-                onClick={(e) => {
-                  // Se il breadcrumb è "Projects" e il link è "/projects", redirigi a "/projects/1"
-                  if (item.title === "Projects" && href === "/projects") {
-                    e.preventDefault();
-                    window.location.href = "/projects/1";
-                  }
-                  if (item.title === "Settings"){
-                    e.preventDefault();
-                    window.location.href = "/projects/1";
-                  }
-                }}
-              >
-                {title}
-              </a>
-            )}
+            {/* Disabilita i link del breadcrumb - mostra solo testo */}
+            <span style={{ cursor: 'default', opacity: 0.6 }}>
+              {title}
+            </span>
           </Elem>
         ) : (
           <Elem key={key} tag="li" name="item" mod={{ last: isLastItem }}>

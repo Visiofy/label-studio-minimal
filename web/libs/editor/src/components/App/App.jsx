@@ -3,8 +3,29 @@
  */
 import React, { Component } from "react";
 import { Result, Spin } from "antd";
-import { getEnv, getRoot } from "mobx-state-tree";
+import { getEnv, getRoot, isAlive } from "mobx-state-tree";
 import { observer, Provider } from "mobx-react";
+
+const safeMobxAccess = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (error) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX App] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
 
 /**
  * Core
@@ -214,38 +235,74 @@ class App extends Component {
 
   render() {
     const { store } = this.props;
-    const as = store.annotationStore;
-    const root = as.selected && as.selected.root;
-    const { settings } = store;
 
-    if (store.isLoading) return this.renderLoader();
+    // Controllo preventivo per evitare errori MobX durante la distruzione
+    try {
+      if (!store || !isSafeToUse(store)) {
+        return this.renderLoader();
+      }
+    } catch (error) {
+      console.warn('[App] Store validation failed, showing loader');
+      return this.renderLoader();
+    }
 
-    if (store.noTask) return this.renderNothingToLabel(store);
+    const as = safeMobxAccess(() => store?.annotationStore);
+    const root = safeMobxAccess(() => as?.selected?.root);
+    const settings = safeMobxAccess(() => store?.settings, {});
 
-    if (store.noAccess) return this.renderNoAccess();
+    // Forza sempre un reload quando si naviga verso MyFirstProject per consistenza
+    // con Settings/Projects che già fanno il reload
+    const shouldForceReload = window.location.pathname.includes('MyFirstProject') ||
+                              window.location.hash.includes('MyFirstProject');
 
-    if (store.labeledSuccess) return this.renderSuccess();
+    if (shouldForceReload && !window.location.href.includes('reloaded=true')) {
+      console.log('[App] Forcing reload for MyFirstProject navigation consistency');
+
+      // Aggiungi parametro per evitare loop infinito di reload
+      const separator = window.location.href.includes('?') ? '&' : '?';
+      window.location.href = window.location.href + separator + 'reloaded=true';
+
+      return this.renderLoader();
+    }
+
+    const isLoading = safeMobxAccess(() => store?.isLoading, false);
+    const noTask = safeMobxAccess(() => store?.noTask, false);
+    const noAccess = safeMobxAccess(() => store?.noAccess, false);
+    const labeledSuccess = safeMobxAccess(() => store?.labeledSuccess, false);
+
+    if (isLoading) return this.renderLoader();
+
+    if (noTask) return this.renderNothingToLabel(store);
+
+    if (noAccess) return this.renderNoAccess();
+
+    if (labeledSuccess) return this.renderSuccess();
 
     if (!root) return this.renderNoAnnotation();
 
-    const viewingAll = as.viewingAll;
+    const viewingAll = safeMobxAccess(() => as?.viewingAll, false);
+    const awaitingSuggestions = safeMobxAccess(() => store.awaitingSuggestions, false);
+    const validation = safeMobxAccess(() => as?.validation);
+    const selectedHistoryRoot = safeMobxAccess(() => as?.selectedHistory?.root);
 
     // tags can be styled in config when user is awaiting for suggestions from ML backend
     const mainContent = (
-      <Block name="main-content" mix={store.awaitingSuggestions ? ["requesting"] : []}>
-        {as.validation === null
-          ? this._renderUI(as.selectedHistory?.root ?? root, as)
+      <Block name="main-content" mix={awaitingSuggestions ? ["requesting"] : []}>
+        {validation === null
+          ? this._renderUI(selectedHistoryRoot ?? root, as)
           : this.renderConfigValidationException(store)}
       </Block>
     );
 
-    const isBulkMode = isFF(FF_BULK_ANNOTATION) && !isSelfServe() && store.hasInterface("annotation:bulk");
+    const hasAnnotationBulkInterface = safeMobxAccess(() => store?.hasInterface("annotation:bulk"), false);
+    const isBulkMode = isFF(FF_BULK_ANNOTATION) && !isSelfServe() && hasAnnotationBulkInterface;
     const newUIEnabled = isFF(FF_DEV_3873);
+    const fullscreen = safeMobxAccess(() => settings?.fullscreen, false);
 
     return (
       <Block
         name="editor"
-        mod={{ fullscreen: settings.fullscreen }}
+        mod={{ fullscreen }}
         ref={isFF(FF_LSDV_4620_3_ML) ? reactCleaner(this) : null}
       >
         <Settings store={store} />
@@ -253,28 +310,28 @@ class App extends Component {
           <ToastProvider>
             {newUIEnabled ? (
               <InstructionsModal
-                visible={store.showingDescription}
-                onCancel={() => store.toggleDescription()}
-                title={store.hasInterface("review") ? "Review Instructions" : "Labeling Instructions"}
+                visible={safeMobxAccess(() => store?.showingDescription, false)}
+                onCancel={() => safeMobxAccess(() => store?.toggleDescription())}
+                title={safeMobxAccess(() => store?.hasInterface("review"), false) ? "Review Instructions" : "Labeling Instructions"}
               >
-                {store.description}
+                {safeMobxAccess(() => store?.description, "")}
               </InstructionsModal>
             ) : (
               <>
-                {store.showingDescription && (
+                {safeMobxAccess(() => store?.showingDescription, false) && (
                   <Segment>
-                    <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(store.description) }} />
+                    <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(safeMobxAccess(() => store?.description, "")) }} />
                   </Segment>
                 )}
               </>
             )}
 
-            {isDefined(store) && store.hasInterface("topbar") && <TopBar store={store} />}
+            {isDefined(store) && safeMobxAccess(() => store?.hasInterface("topbar"), false) && <TopBar store={store} />}
             <Block
               name="wrapper"
               mod={{
                 viewAll: viewingAll,
-                bsp: settings.effectiveBottomSidePanel,
+                bsp: safeMobxAccess(() => settings.effectiveBottomSidePanel, false),
                 showingBottomBar: newUIEnabled,
               }}
             >
@@ -282,18 +339,18 @@ class App extends Component {
                 isBulkMode ? (
                   <>
                     {mainContent}
-                    {store.hasInterface("topbar") && <BottomBar store={store} />}
+                    {safeMobxAccess(() => store?.hasInterface("topbar"), false) && <BottomBar store={store} />}
                   </>
                 ) : (
                   <SideTabsPanels
                     panelsHidden={viewingAll}
-                    currentEntity={as.selectedHistory ?? as.selected}
-                    regions={as.selected.regionStore}
-                    showComments={store.hasInterface("annotations:comments")}
-                    focusTab={store.commentStore.tooltipMessage ? "comments" : null}
+                    currentEntity={safeMobxAccess(() => as?.selectedHistory ?? as?.selected) || safeMobxAccess(() => as?.selected)}
+                    regions={safeMobxAccess(() => as?.selected?.regionStore) || {}}
+                    showComments={safeMobxAccess(() => store?.hasInterface("annotations:comments"), false)}
+                    focusTab={safeMobxAccess(() => store?.commentStore?.tooltipMessage, null) ? "comments" : null}
                   >
                     {mainContent}
-                    {store.hasInterface("topbar") && <BottomBar store={store} />}
+                    {safeMobxAccess(() => store?.hasInterface("topbar"), false) && <BottomBar store={store} />}
                   </SideTabsPanels>
                 )
               ) : isBulkMode ? (
@@ -301,8 +358,8 @@ class App extends Component {
               ) : (
                 <SidePanels
                   panelsHidden={viewingAll}
-                  currentEntity={as.selectedHistory ?? as.selected}
-                  regions={as.selected.regionStore}
+                  currentEntity={safeMobxAccess(() => as?.selectedHistory ?? as?.selected) || safeMobxAccess(() => as?.selected)}
+                  regions={safeMobxAccess(() => as?.selected?.regionStore) || {}}
                 >
                   {mainContent}
                 </SidePanels>

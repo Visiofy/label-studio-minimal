@@ -1,5 +1,27 @@
 import { observer } from "mobx-react";
+import { isAlive } from "mobx-state-tree";
 import { type FC, useCallback, useMemo, useState } from "react";
+
+const safeMobxAccess = (fn: () => any, fallback: any = null) => {
+  try {
+    return fn();
+  } catch (error: any) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX Relations] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item: any) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
 import {
   IconMenu,
   IconRelationBi,
@@ -17,7 +39,15 @@ import { Select } from "@humansignal/ui";
 import "./Relations.scss";
 
 const RealtionsComponent: FC<any> = ({ relationStore }) => {
-  const relations = relationStore.orderedRelations;
+  if (!relationStore || !isSafeToUse(relationStore)) {
+    return (
+      <Block name="relations">
+        <div>Relations not available</div>
+      </Block>
+    );
+  }
+
+  const relations = safeMobxAccess(() => relationStore.orderedRelations, []);
 
   return (
     <Block name="relations">
@@ -43,11 +73,18 @@ const RelationsList: FC<RelationsListProps> = observer(({ relations }) => {
 const RelationItem: FC<{ relation: any }> = observer(({ relation }) => {
   const [hovered, setHovered] = useState(false);
 
+  if (!relation || !isSafeToUse(relation)) {
+    return null;
+  }
+
   const onMouseEnter = useCallback(() => {
-    if (!!relation.node1 && !!relation.node2) {
+    const node1 = safeMobxAccess(() => relation.node1);
+    const node2 = safeMobxAccess(() => relation.node2);
+
+    if (!!node1 && !!node2) {
       setHovered(true);
-      relation.toggleHighlight();
-      relation.setSelfHighlight(true);
+      safeMobxAccess(() => relation.toggleHighlight());
+      safeMobxAccess(() => relation.setSelfHighlight(true));
     }
   }, []);
 

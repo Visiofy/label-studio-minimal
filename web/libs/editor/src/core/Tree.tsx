@@ -1,4 +1,4 @@
-import { getParentOfType, getType } from "mobx-state-tree";
+import { getParentOfType, getType, isAlive } from "mobx-state-tree";
 import type { IAnyComplexType, IAnyStateTreeNode } from "mobx-state-tree/dist/internal";
 
 import Registry from "./Registry";
@@ -244,7 +244,7 @@ function renderItem(ref: IAnyStateTreeNode, annotation: IAnnotation, includeKey 
   if (!View) {
     throw new Error(`No view for model: ${typeName}`);
   }
-  const key = (identifierAttribute && el[identifierAttribute]) || guidGenerator();
+  const key = (identifierAttribute && isAlive(el) && el[identifierAttribute]) || guidGenerator();
 
   return <View key={includeKey ? key : undefined} item={el} />;
 }

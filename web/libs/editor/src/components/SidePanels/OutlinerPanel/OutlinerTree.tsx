@@ -1,5 +1,6 @@
 import chroma from "chroma-js";
 import { inject, observer } from "mobx-react";
+import { isAlive } from "mobx-state-tree";
 import Tree from "rc-tree";
 import {
   createContext,
@@ -22,6 +23,27 @@ import { FF_DEV_2755, FF_DEV_3873, FF_PER_FIELD_COMMENTS, isFF } from "../../../
 import { flatten, isDefined, isMacOS } from "../../../utils/utilities";
 import { NodeIcon } from "../../Node/Node";
 import { LockButton } from "../Components/LockButton";
+
+const safeMobxAccess = (fn: () => any, fallback: any = null) => {
+  try {
+    return fn();
+  } catch (error: any) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item: any) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
 import { RegionControlButton } from "../Components/RegionControlButton";
 import { RegionContextMenu } from "../Components/RegionContextMenu";
 import "./TreeView.scss";
@@ -273,17 +295,21 @@ const useEventHandlers = () => {
   // see onScroll for explanation
   const highlightedRef = useRef<any>();
   const onMouseEnter = useCallback(({ node }: any) => {
-    if (highlightedRef.current) {
-      highlightedRef.current?.setHighlight(false);
+    if (highlightedRef.current && isSafeToUse(highlightedRef.current)) {
+      safeMobxAccess(() => highlightedRef.current?.setHighlight(false));
     }
-    node.item?.setHighlight(true);
-    highlightedRef.current = node.item;
+    if (node.item && isSafeToUse(node.item)) {
+      safeMobxAccess(() => node.item?.setHighlight(true));
+      highlightedRef.current = node.item;
+    }
   }, []);
 
   const onMouseLeave = useCallback(({ node }: any) => {
-    node?.item?.setHighlight(false);
-    if (highlightedRef.current !== node?.item) {
-      highlightedRef.current?.setHighlight(false);
+    if (node?.item && isSafeToUse(node.item)) {
+      safeMobxAccess(() => node?.item?.setHighlight(false));
+    }
+    if (highlightedRef.current !== node?.item && isSafeToUse(highlightedRef.current)) {
+      safeMobxAccess(() => highlightedRef.current?.setHighlight(false));
     }
     highlightedRef.current = undefined;
   }, []);

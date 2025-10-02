@@ -135,8 +135,7 @@ RUN --mount=type=cache,target="/var/cache/apt",sharing=locked \
     set -eux; \
     apt-get update; \
     apt-get upgrade -y; \
-    apt-get install --no-install-recommends -y libexpat1 libgl1-mesa-glx libglib2.0-0 \
-        gnupg2 curl; \
+   apt-get install --no-install-recommends -y libexpat1 libgl1-mesa-dev libglib2.0-0 gnupg2 curl; \
     apt-get autoremove -y
 
 # install nginx

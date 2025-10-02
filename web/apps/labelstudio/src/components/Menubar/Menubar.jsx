@@ -54,17 +54,19 @@ const RightContextMenu = ({ className, ...props }) => {
 
   const currentPort = getCurrentPort();
   const projectId = getProjectId();
-  const exportUrl = `http://192.168.2.136:6001/api/export_format?source_port=${currentPort}`;
+  const exportUrl = `${window.location.protocol}//${window.location.hostname}:6001/api/export_format?source_port=${currentPort}`;
 
   const handleDataConfigClick = useCallback((e) => {
     e.preventDefault();
-    
+
     if (!projectId) {
       console.error('No project ID found in URL');
       return;
     }
 
-    const targetUrl = `/projects/${projectId}/settings/labeling`;
+    // Capture current URL to pass as 'from' parameter
+    const currentUrl = encodeURIComponent(window.location.pathname + window.location.search);
+    const targetUrl = `/projects/${projectId}/settings/labeling?from=${currentUrl}`;
     window.location.href = targetUrl;
   }, [projectId]);
 
@@ -99,6 +101,7 @@ const RightContextMenu = ({ className, ...props }) => {
         margin: 0;
         font-size: 18px;
         color: #333;
+        
         font-weight: 500;
       ">Exporting...</p>
     </div>
@@ -132,7 +135,7 @@ const RightContextMenu = ({ className, ...props }) => {
             Data Config
           </button>
         )}
-        
+
         <button
           onClick={handleExportClick}
           className="lsf-button-ls lsf-button-ls_size_compact lsf-button-ls_look_"
@@ -236,10 +239,10 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
       {enabled && (
         <div className={menubarClass}>
           
-          <div 
+          <div
             className={`${menubarClass.elem("trigger")} main-menu-trigger`}
             onClick={() => window.location.pathname = '/projects/1'}
-            style={{ 
+            style={{
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center'

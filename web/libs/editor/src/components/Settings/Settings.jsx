@@ -11,7 +11,7 @@ import { triggerResizeEvent } from "../../utils/utilities";
 import EditorSettings from "../../core/settings/editorsettings";
 import * as TagSettings from "./TagSettings";
 import { IconClose } from "@humansignal/icons";
-import { Checkbox, Toggle } from "@humansignal/ui";
+import { Checkbox } from "@humansignal/ui";
 import { FF_DEV_3873, isFF } from "../../utils/feature-flags";
 
 const HotkeysDescription = () => {
@@ -64,66 +64,6 @@ const HotkeysDescription = () => {
 
 const newUI = isFF(FF_DEV_3873) ? { newUI: true } : {};
 
-const editorSettingsKeys = Object.keys(EditorSettings);
-
-if (isFF(FF_DEV_3873)) {
-  const enableTooltipsIndex = editorSettingsKeys.findIndex((key) => key === "enableTooltips");
-  const enableLabelTooltipsIndex = editorSettingsKeys.findIndex((key) => key === "enableLabelTooltips");
-
-  // swap these in the array
-  const tmp = editorSettingsKeys[enableTooltipsIndex];
-
-  editorSettingsKeys[enableTooltipsIndex] = editorSettingsKeys[enableLabelTooltipsIndex];
-  editorSettingsKeys[enableLabelTooltipsIndex] = tmp;
-}
-
-const SettingsTag = ({ children }) => {
-  return <Block name="settings-tag">{children}</Block>;
-};
-
-const GeneralSettings = observer(({ store }) => {
-  return (
-    <Block name="settings" mod={newUI}>
-      {editorSettingsKeys.map((obj, index) => {
-        return (
-          <Elem name="field" tag="label" key={index}>
-            {isFF(FF_DEV_3873) ? (
-              <>
-                <Block name="settings__label">
-                  <Elem name="title">
-                    {EditorSettings[obj].newUI.title}
-                    {EditorSettings[obj].newUI.tags?.split(",").map((tag) => (
-                      <SettingsTag key={tag}>{tag}</SettingsTag>
-                    ))}
-                  </Elem>
-                  <Block name="description">{EditorSettings[obj].newUI.description}</Block>
-                </Block>
-                <Toggle
-                  key={index}
-                  checked={store.settings[obj]}
-                  onChange={store.settings[EditorSettings[obj].onChangeEvent]}
-                  description={EditorSettings[obj].description}
-                />
-              </>
-            ) : (
-              <>
-                <Checkbox
-                  key={index}
-                  checked={store.settings[obj]}
-                  onChange={store.settings[EditorSettings[obj].onChangeEvent]}
-                >
-                  {EditorSettings[obj].description}
-                </Checkbox>
-                <br />
-              </>
-            )}
-          </Elem>
-        );
-      })}
-    </Block>
-  );
-});
-
 const LayoutSettings = observer(({ store }) => {
   return (
     <Block name="settings" mod={newUI}>
@@ -168,25 +108,11 @@ const LayoutSettings = observer(({ store }) => {
           Show Predictions panel
         </Checkbox>
       </Elem>
-
-      {/* Saved for future use */}
-      {/* <Elem name="field">
-        <Checkbox
-          value="Show image in fullsize"
-          defaultChecked={store.settings.imageFullSize}
-          onChange={() => {
-            store.settings.toggleImageFS();
-          }}
-        >
-          Show image in fullsize
-        </Checkbox>
-      </Elem> */}
     </Block>
   );
 });
 
 const Settings = {
-  General: { name: "General", component: GeneralSettings },
   Hotkeys: { name: "Hotkeys", component: HotkeysDescription },
 };
 
@@ -194,7 +120,7 @@ if (!isFF(FF_DEV_3873)) {
   Settings.Layout = { name: "Layout", component: LayoutSettings };
 }
 
-const DEFAULT_ACTIVE = Object.keys(Settings)[0];
+const DEFAULT_ACTIVE = "Hotkeys";
 
 const DEFAULT_MODAL_SETTINGS = isFF(FF_DEV_3873)
   ? {

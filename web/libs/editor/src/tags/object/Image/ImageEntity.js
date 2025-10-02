@@ -1,7 +1,28 @@
-import { types, getParent } from "mobx-state-tree";
+import { types, getParent, isAlive } from "mobx-state-tree";
 import { FileLoader } from "../../../utils/FileLoader";
 import { clamp } from "../../../utils/utilities";
 import { FF_IMAGE_MEMORY_USAGE, isFF } from "../../../utils/feature-flags";
+
+const safeMobxAccess = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (error) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX ImageEntity] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
 
 const fileLoader = new FileLoader();
 
@@ -87,16 +108,20 @@ export const ImageEntity = types
           const crossOrigin = self.imageCrossOrigin;
           if (crossOrigin) img.crossOrigin = crossOrigin;
           img.onload = () => {
-            self.setCurrentSrc(self.src);
-            self.setDownloaded(true);
-            self.setProgress(1);
-            self.setDownloading(false);
-            self.setImageLoaded(true);
+            if (isSafeToUse(self)) {
+              safeMobxAccess(() => self.setCurrentSrc(self.src));
+              safeMobxAccess(() => self.setDownloaded(true));
+              safeMobxAccess(() => self.setProgress(1));
+              safeMobxAccess(() => self.setDownloading(false));
+              safeMobxAccess(() => self.setImageLoaded(true));
+            }
             resolve();
           };
           img.onerror = () => {
-            self.setError(true);
-            self.setDownloading(false);
+            if (isSafeToUse(self)) {
+              safeMobxAccess(() => self.setError(true));
+              safeMobxAccess(() => self.setDownloading(false));
+            }
             resolve();
           };
           img.src = self.src;
@@ -104,62 +129,86 @@ export const ImageEntity = types
         return;
       }
 
-      self.setDownloading(true);
+      safeMobxAccess(() => self.setDownloading(true));
       fileLoader
         .download(self.src, (_t, _l, progress) => {
-          self.setProgress(progress);
+          if (isSafeToUse(self)) {
+            safeMobxAccess(() => self.setProgress(progress));
+          }
         })
         .then((url) => {
-          self.setDownloaded(true);
-          self.setDownloading(false);
-          self.setCurrentSrc(url);
+          if (isSafeToUse(self)) {
+            safeMobxAccess(() => self.setDownloaded(true));
+            safeMobxAccess(() => self.setDownloading(false));
+            safeMobxAccess(() => self.setCurrentSrc(url));
+          }
         })
         .catch(() => {
-          self.setDownloading(false);
-          self.setError(true);
+          if (isSafeToUse(self)) {
+            safeMobxAccess(() => self.setDownloading(false));
+            safeMobxAccess(() => self.setError(true));
+          }
         });
     },
 
     ensurePreloaded() {
-      if (isFF(FF_IMAGE_MEMORY_USAGE)) return self.currentSrc !== undefined;
+      if (isFF(FF_IMAGE_MEMORY_USAGE)) return safeMobxAccess(() => self.currentSrc !== undefined, false);
 
       if (fileLoader.isError(self.src)) {
-        self.setDownloading(false);
-        self.setError(true);
+        if (isSafeToUse(self)) {
+          safeMobxAccess(() => self.setDownloading(false));
+          safeMobxAccess(() => self.setError(true));
+        }
         return true;
       }
       if (fileLoader.isPreloaded(self.src)) {
-        self.setDownloading(false);
-        self.setDownloaded(true);
-        self.setProgress(1);
-        self.setCurrentSrc(fileLoader.getPreloadedURL(self.src));
+        if (isSafeToUse(self)) {
+          safeMobxAccess(() => self.setDownloading(false));
+          safeMobxAccess(() => self.setDownloaded(true));
+          safeMobxAccess(() => self.setProgress(1));
+        }
+        if (isSafeToUse(self)) {
+          safeMobxAccess(() => self.setCurrentSrc(fileLoader.getPreloadedURL(self.src)));
+        }
         return true;
       }
       return false;
     },
 
     setImageLoaded(value) {
-      self.imageLoaded = value;
+      if (isSafeToUse(self)) {
+        self.imageLoaded = value;
+      }
     },
 
     setProgress(progress) {
-      self.progress = clamp(progress, 0, 100);
+      if (isSafeToUse(self)) {
+        self.progress = clamp(progress, 0, 100);
+      }
     },
 
     setDownloading(downloading) {
-      self.downloading = downloading;
+      if (isSafeToUse(self)) {
+        self.downloading = downloading;
+      }
     },
 
     setDownloaded(downloaded) {
-      self.downloaded = downloaded;
+      if (isSafeToUse(self)) {
+        self.downloaded = downloaded;
+      }
     },
 
     setCurrentSrc(src) {
-      self.currentSrc = src;
+      if (isSafeToUse(self)) {
+        self.currentSrc = src;
+      }
     },
 
     setError() {
-      self.error = true;
+      if (isSafeToUse(self)) {
+        self.error = true;
+      }
     },
   }))
   .actions((self) => ({

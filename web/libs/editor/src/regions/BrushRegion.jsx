@@ -18,6 +18,27 @@ import IsReadyMixin from "../mixins/IsReadyMixin";
 import { KonvaRegionMixin } from "../mixins/KonvaRegion";
 import { ImageModel } from "../tags/object/Image";
 import { colorToRGBAArray, rgbArrayToHex } from "../utils/colors";
+
+const safeMobxAccess = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (error) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
 import { FF_DEV_3793, FF_ZOOM_OPTIM, isFF } from "../utils/feature-flags";
 import { AliveRegion } from "./AliveRegion";
 import { RegionWrapper } from "./RegionWrapper";
@@ -518,37 +539,51 @@ const HtxBrushView = ({ item, setShapeRef }) => {
     //  an image without having to go through an RLE encode/decode loop to save performance for tools
     //  that dynamically produce image masks.
     const prepareImage = async () => {
-      if (!item.rle && !item.maskDataURL) return;
-      if (!item.parent || item.parent.naturalWidth <= 1 || item.parent.naturalHeight <= 1) return;
+      if (!isSafeToUse(item)) return;
+
+      const rle = safeMobxAccess(() => item.rle);
+      const maskDataURL = safeMobxAccess(() => item.maskDataURL);
+
+      if (!rle && !maskDataURL) return;
+      if (!safeMobxAccess(() => item.parent) ||
+          safeMobxAccess(() => item.parent.naturalWidth, 0) <= 1 ||
+          safeMobxAccess(() => item.parent.naturalHeight, 0) <= 1) return;
 
       let img;
 
-      if (item.maskDataURL) {
-        img = await Canvas.maskDataURL2Image(item.maskDataURL, { color: item.strokeColor });
-      } else if (item.rle) {
-        img = Canvas.RLE2Region(item, { color: item.strokeColor });
+      if (maskDataURL) {
+        const strokeColor = safeMobxAccess(() => item.strokeColor);
+        img = await Canvas.maskDataURL2Image(maskDataURL, { color: strokeColor });
+      } else if (rle) {
+        const strokeColor = safeMobxAccess(() => item.strokeColor);
+        img = Canvas.RLE2Region(item, { color: strokeColor });
       }
 
       if (img) {
         img.onload = () => {
           setImage(img);
-          item.setReady(true);
+          if (isSafeToUse(item)) {
+            safeMobxAccess(() => item.setReady(true));
+          }
         };
       }
     };
-    prepareImage();
+
+    if (isSafeToUse(item)) {
+      prepareImage();
+    }
   }, [
-    item.rle,
-    item.maskDataURL,
-    item.maskBoundsMinX,
-    item.maskBoundsMinY,
-    item.maskBoundsMaxX,
-    item.maskBoundsMaxY,
-    item.parent,
-    item.parent?.naturalWidth,
-    item.parent?.naturalHeight,
-    item.strokeColor,
-    item.opacity,
+    safeMobxAccess(() => item.rle),
+    safeMobxAccess(() => item.maskDataURL),
+    safeMobxAccess(() => item.maskBoundsMinX),
+    safeMobxAccess(() => item.maskBoundsMinY),
+    safeMobxAccess(() => item.maskBoundsMaxX),
+    safeMobxAccess(() => item.maskBoundsMaxY),
+    safeMobxAccess(() => item.parent),
+    safeMobxAccess(() => item.parent?.naturalWidth),
+    safeMobxAccess(() => item.parent?.naturalHeight),
+    safeMobxAccess(() => item.strokeColor),
+    safeMobxAccess(() => item.opacity),
   ]);
 
   // Drawing hit area by shape color to detect interactions inside the Konva
@@ -624,16 +659,16 @@ const HtxBrushView = ({ item, setShapeRef }) => {
       done = true;
     };
   }, [
-    item.touches.length,
-    item.strokeColor,
-    item.parent?.stageScale,
+    safeMobxAccess(() => item.touches?.length, 0),
+    safeMobxAccess(() => item.strokeColor),
+    safeMobxAccess(() => item.parent?.stageScale),
     store.annotationStore.selected?.id,
-    item.parent?.zoomingPositionX,
-    item.parent?.zoomingPositionY,
-    item.parent?.stageWidth,
-    item.parent?.stageHeight,
-    item.maskDataURL,
-    item.rle,
+    safeMobxAccess(() => item.parent?.zoomingPositionX),
+    safeMobxAccess(() => item.parent?.zoomingPositionY),
+    safeMobxAccess(() => item.parent?.stageWidth),
+    safeMobxAccess(() => item.parent?.stageHeight),
+    safeMobxAccess(() => item.maskDataURL),
+    safeMobxAccess(() => item.rle),
     image,
   ]);
 

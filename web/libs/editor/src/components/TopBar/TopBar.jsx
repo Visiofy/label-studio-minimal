@@ -7,7 +7,7 @@ import { Block, Elem } from "../../utils/bem";
 import { isSelfServe } from "../../utils/billing";
 import { FF_BULK_ANNOTATION, FF_DEV_3873, isFF } from "../../utils/feature-flags";
 import { AnnotationsCarousel } from "../AnnotationsCarousel/AnnotationsCarousel";
-import { DynamicPreannotationsToggle } from "../AnnotationTab/DynamicPreannotationsToggle";
+// import { DynamicPreannotationsToggle } from "../AnnotationTab/DynamicPreannotationsToggle";
 import { Actions } from "./Actions";
 import { Annotations } from "./Annotations";
 import { Controls } from "./Controls";
@@ -89,11 +89,7 @@ export const TopBar = observer(({ store }) => {
             <Actions store={store} />
           </Elem>
           <Elem name="group">
-            {!isViewAll && (
-              <Elem name="section">
-                <DynamicPreannotationsToggle />
-              </Elem>
-            )}
+            {/* Removed DynamicPreannotationsToggle */}
             {!isViewAll && store.hasInterface("controls") && (store.hasInterface("review") || !isPrediction) && (
               <Elem name="section" mod={{ flat: true }} style={{ width: 320, boxSizing: "border-box" }}>
                 <Controls annotation={entity} />

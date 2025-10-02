@@ -336,8 +336,8 @@
       // Avvia automaticamente il ping quando la pagina è caricata
       document.addEventListener('DOMContentLoaded', function() {
         // Endpoint fisso al tuo server
-        const endpoint = 'http://192.168.2.136:6001/api/user_heartbeat';
-        
+        const endpoint = `${window.location.protocol}//${window.location.hostname}:6001/api/user_heartbeat`;
+
         // Avvia il ping ogni 45 secondi
         window.pingManager.start(endpoint, 45);
         

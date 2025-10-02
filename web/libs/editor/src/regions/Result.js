@@ -1,10 +1,31 @@
-import { getParent, getRoot, getSnapshot, types } from "mobx-state-tree";
+import { getParent, getRoot, getSnapshot, isAlive, types } from "mobx-state-tree";
 import { guidGenerator } from "../core/Helpers";
 import Registry from "../core/Registry";
 import Tree from "../core/Tree";
 import { AnnotationMixin } from "../mixins/AnnotationMixin";
 import { isDefined } from "../utils/utilities";
 import { FF_LSDV_4583, isFF } from "../utils/feature-flags";
+
+const safeMobxAccess = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (error) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
 
 const Result = types
   .model("Result", {
@@ -104,7 +125,8 @@ const Result = types
     },
 
     get mainValue() {
-      return self.value[self.from_name.valueType];
+      if (!isSafeToUse(self)) return null;
+      return safeMobxAccess(() => self.value[self.from_name.valueType], null);
     },
 
     mergeMainValue(value) {

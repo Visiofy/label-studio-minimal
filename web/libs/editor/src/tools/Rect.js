@@ -10,7 +10,7 @@ import { FF_DEV_3793, isFF } from "../utils/feature-flags";
 const _BaseNPointTool = types
   .model("BaseNTool", {
     group: "segmentation",
-    smart: true,
+    smart: false, // Rectangle NON usa SAM
     shortcut: "R",
   })
   .views((self) => {

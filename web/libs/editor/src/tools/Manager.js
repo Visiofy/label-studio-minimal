@@ -108,11 +108,8 @@ class ToolsManager {
       if (typeof t.selected !== "undefined") t.setSelected(false);
     });
 
-    const stage = this.obj?.stageRef;
-
-    if (stage) {
-      stage.container().style.cursor = "default";
-    }
+    // DON'T reset cursor here - let the new tool handle it
+    // This prevents race conditions with cursor updates
   }
 
   selectTool(tool, selected, isInitial = false) {
@@ -141,6 +138,20 @@ class ToolsManager {
     if (selected) {
       this.unselectAll();
       tool.setSelected?.(true, isInitial);
+
+      // Ensure proper cursor is set after selection
+      setTimeout(() => {
+        const stage = this.obj?.stageRef;
+        if (stage) {
+          // If tool has updateCursor method, let it handle the cursor
+          if (tool.updateCursor && typeof tool.updateCursor === 'function') {
+            tool.updateCursor();
+          } else {
+            // Otherwise, set default cursor
+            stage.container().style.cursor = "default";
+          }
+        }
+      }, 10); // Small delay to ensure DOM is ready
     } else {
       const drawingTool = this.findDrawingTool();
 

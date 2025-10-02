@@ -1,6 +1,28 @@
 import { inject } from "mobx-react";
-import { getRoot } from "mobx-state-tree";
+import { getRoot, isAlive } from "mobx-state-tree";
 import { useCallback, useMemo } from "react";
+
+const safeMobxAccess = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (error) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
+
 import { useShortcut } from "../../../sdk/hotkeys";
 import { Block, Elem } from "../../../utils/bem";
 import { FF_DEV_2536, isFF } from "../../../utils/feature-flags";
@@ -116,12 +138,23 @@ export const DataView = injector(
         const itemID = item.task_id ?? item.id;
 
         if (store.SDK.type === "DE") {
-          store.SDK.invoke("recordPreview", item, columns, getRoot(view).taskStore.associatedList);
+          safeMobxAccess(() => {
+            if (isSafeToUse(view)) {
+              store.SDK.invoke("recordPreview", item, columns, getRoot(view).taskStore.associatedList);
+            }
+          });
         } else if (e.metaKey || e.ctrlKey) {
           window.open(`./?task=${itemID}`, "_blank");
         } else {
           store._sdk.lsf?.saveDraft();
-          getRoot(view).startLabeling(item);
+          safeMobxAccess(() => {
+            if (isSafeToUse(view)) {
+              const root = getRoot(view);
+              if (isSafeToUse(root) && root.startLabeling) {
+                safeMobxAccess(() => root.startLabeling(item));
+              }
+            }
+          });
         }
       },
       [view, columns],
@@ -312,7 +345,14 @@ export const DataView = injector(
 
       const task = dataStore.focusPrev();
 
-      getRoot(view).startLabeling(task);
+      safeMobxAccess(() => {
+        if (isSafeToUse(view)) {
+          const root = getRoot(view);
+          if (isSafeToUse(root) && root.startLabeling) {
+            root.startLabeling(task);
+          }
+        }
+      });
     });
 
     useShortcut("dm.focus-next", () => {
@@ -320,7 +360,14 @@ export const DataView = injector(
 
       const task = dataStore.focusNext();
 
-      getRoot(view).startLabeling(task);
+      safeMobxAccess(() => {
+        if (isSafeToUse(view)) {
+          const root = getRoot(view);
+          if (isSafeToUse(root) && root.startLabeling) {
+            root.startLabeling(task);
+          }
+        }
+      });
     });
 
     useShortcut("dm.close-labeling", () => {

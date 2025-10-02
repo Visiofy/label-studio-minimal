@@ -1,5 +1,6 @@
 import { observer } from "mobx-react";
 import { cast, types } from "mobx-state-tree";
+import React from "react";
 
 import { defaultStyle } from "../../../core/Constants";
 import { customTypes } from "../../../core/CustomTypes";
@@ -144,12 +145,78 @@ const LabelsModel = types.compose(
   SelectedModelMixin.props({ _child: "LabelModel" }),
 );
 
+
 const HtxLabels = observer(({ item }) => {
-  return (
-    <Block name="labels" mod={{ hidden: !item.visible, inline: item.showinline }}>
-      {Tree.renderChildren(item, item.annotation)}
-    </Block>
-  );
+  const useCustomSelector = ['brushlabels', 'rectanglelabels', 'keypointlabels'].includes(item.type);
+  const containerRef = React.useRef(null);
+
+  // Funzione per deselezionare tutti i gruppi di label diversi dal corrente
+  const deselectOtherGroups = React.useCallback(() => {
+    if (!item.annotation?.names) return;
+
+    // Trova tutti i gruppi di label
+    const allLabelGroups = Array.from(item.annotation.names.values());
+
+    allLabelGroups.forEach(group => {
+      // Deseleziona solo i gruppi diversi dal corrente
+      if (group.name !== item.name && group.unselectAll) {
+        try {
+          group.unselectAll();
+        } catch (error) {
+          console.warn('Error deselecting group:', group.name, error);
+        }
+      }
+    });
+
+    // Deseleziona anche tutte le regioni selezionate per evitare conflitti di re-labeling
+    try {
+      if (item.annotation?.unselectAll) {
+        item.annotation.unselectAll();
+      } else if (item.annotation?.regionStore?.unselectAll) {
+        item.annotation.regionStore.unselectAll();
+      } else {
+        // Fallback: cerca e deseleziona manualmente le regioni
+        const selectedRegions = item.annotation?.selectedRegions || [];
+        selectedRegions.forEach(region => {
+          if (region.unselectRegion) {
+            region.unselectRegion();
+          } else if (region.setSelected) {
+            region.setSelected(false);
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('Error deselecting regions:', error);
+    }
+  }, [item.annotation?.names, item.name, item.annotation]);
+
+  // Listener per i click sulle label di questo gruppo
+  React.useEffect(() => {
+    if (!useCustomSelector) return;
+
+    const handleLabelClick = (event) => {
+      const labelElement = event.target.closest('.lsf-label');
+      if (!labelElement) return;
+
+      const ourContainer = containerRef.current;
+      if (!ourContainer || !ourContainer.contains(labelElement)) {
+        return;
+      }
+
+      // Deseleziona altri gruppi PRIMA del click per permettere la selezione
+      deselectOtherGroups();
+    };
+
+    // Usa capture phase per essere sicuri di arrivare prima del normale click handling
+    document.addEventListener('mousedown', handleLabelClick, true);
+
+    return () => {
+      document.removeEventListener('mousedown', handleLabelClick, true);
+    };
+  }, [useCustomSelector, deselectOtherGroups]);
+
+  // Hide native Labels component - custom menu handles this
+  return null;
 });
 
 Registry.addTag("labels", LabelsModel, HtxLabels);

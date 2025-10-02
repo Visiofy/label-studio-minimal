@@ -6,6 +6,27 @@ import { PER_REGION_MODES } from "./PerRegion";
 import { ReadOnlyRegionMixin } from "./ReadOnlyMixin";
 import { FF_LSDV_4930, FF_TAXONOMY_LABELING, isFF } from "../utils/feature-flags";
 
+const safeMobxAccess = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (error) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
+
 let ouid = 1;
 
 export const AreaMixinBase = types
@@ -25,7 +46,8 @@ export const AreaMixinBase = types
      * @return {Result[]} all results with labeling (created by *Labels control)
      */
     get labelings() {
-      return self.results.filter((r) => r.from_name.isLabeling);
+      if (!isSafeToUse(self)) return [];
+      return safeMobxAccess(() => self.results.filter((r) => r.from_name.isLabeling), []);
     },
 
     /**

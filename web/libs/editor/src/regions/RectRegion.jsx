@@ -20,6 +20,27 @@ import { EditableRegion } from "./EditableRegion";
 import { RegionWrapper } from "./RegionWrapper";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH } from "../components/ImageView/Image";
 
+const safeMobxAccess = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (error) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
+
 const RectRegionAbsoluteCoordsDEV3793 = types
   .model({
     coordstype: types.optional(types.enumeration(["px", "perc"]), "perc"),
@@ -415,72 +436,88 @@ const RectRegionModel = types.compose(
 );
 
 const HtxRectangleView = ({ item, setShapeRef }) => {
-  const { store } = item;
+  if (!isSafeToUse(item)) return null;
 
-  const { suggestion } = useContext(ImageViewContext) ?? {};
-  const regionStyles = useRegionStyles(item, { suggestion });
-  const stage = item.parent?.stageRef;
+  // Se l'item non è sicuro durante il render, ritorna null invece di crashare
+  let store, regionStyles, stage, suggestion;
+
+  try {
+    const context = useContext(ImageViewContext);
+    suggestion = context?.suggestion;
+    store = item?.store || {};
+    regionStyles = useRegionStyles(item, { suggestion });
+    stage = item?.parent?.stageRef;
+  } catch (error) {
+    console.warn('[RectRegion] Error during render setup:', error.message);
+    return null;
+  }
 
   const eventHandlers = {};
 
-  if (!item.parent) return null;
-  if (!item.inViewPort) return null;
+  if (!safeMobxAccess(() => item.parent)) return null;
+  if (!safeMobxAccess(() => item.inViewPort)) return null;
 
-  if (!suggestion && !item.isReadOnly()) {
+  if (!suggestion && !safeMobxAccess(() => item.isReadOnly())) {
     eventHandlers.onTransform = ({ target }) => {
       // resetting the skew makes transformations weird but predictable
       target.setAttr("skewX", 0);
       target.setAttr("skewY", 0);
     };
     eventHandlers.onTransformEnd = (e) => {
+      if (!isSafeToUse(item)) return;
+
       const t = e.target;
 
-      item.setPosition(
+      safeMobxAccess(() => item.setPosition(
         t.getAttr("x"),
         t.getAttr("y"),
         t.getAttr("width") * t.getAttr("scaleX"),
         t.getAttr("height") * t.getAttr("scaleY"),
         t.getAttr("rotation"),
-      );
+      ));
 
       t.setAttr("scaleX", 1);
       t.setAttr("scaleY", 1);
 
-      item.notifyDrawingFinished();
+      safeMobxAccess(() => item.notifyDrawingFinished());
     };
 
     eventHandlers.onDragStart = (e) => {
-      if (item.parent.getSkipInteractions()) {
+      if (!isSafeToUse(item)) return;
+
+      if (safeMobxAccess(() => item.parent.getSkipInteractions())) {
         e.currentTarget.stopDrag(e.evt);
         return;
       }
-      item.annotation.history.freeze(item.id);
+      safeMobxAccess(() => item.annotation.history.freeze(item.id));
     };
 
     eventHandlers.onDragEnd = (e) => {
+      if (!isSafeToUse(item)) return;
+
       const t = e.target;
 
-      item.setPosition(t.getAttr("x"), t.getAttr("y"), t.getAttr("width"), t.getAttr("height"), t.getAttr("rotation"));
-      item.setScale(t.getAttr("scaleX"), t.getAttr("scaleY"));
-      item.annotation.history.unfreeze(item.id);
+      safeMobxAccess(() => item.setPosition(t.getAttr("x"), t.getAttr("y"), t.getAttr("width"), t.getAttr("height"), t.getAttr("rotation")));
+      safeMobxAccess(() => item.setScale(t.getAttr("scaleX"), t.getAttr("scaleY")));
+      safeMobxAccess(() => item.annotation.history.unfreeze(item.id));
 
-      item.notifyDrawingFinished();
+      safeMobxAccess(() => item.notifyDrawingFinished());
     };
 
     eventHandlers.dragBoundFunc = createDragBoundFunc(item, {
-      x: item.x - item.bboxCoords.left,
-      y: item.y - item.bboxCoords.top,
+      x: safeMobxAccess(() => item.x - item.bboxCoords.left, 0),
+      y: safeMobxAccess(() => item.y - item.bboxCoords.top, 0),
     });
   }
 
   return (
     <RegionWrapper item={item}>
       <Rect
-        x={item.canvasX}
-        y={item.canvasY}
+        x={item.canvasX || 0}
+        y={item.canvasY || 0}
         ref={(node) => setShapeRef(node)}
-        width={item.canvasWidth}
-        height={item.canvasHeight}
+        width={item.canvasWidth || 0}
+        height={item.canvasHeight || 0}
         fill={regionStyles.fillColor}
         stroke={regionStyles.strokeColor}
         strokeWidth={regionStyles.strokeWidth}
@@ -488,13 +525,13 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
         perfectDrawEnabled={false}
         shadowForStrokeEnabled={false}
         shadowBlur={0}
-        dash={suggestion ? [10, 10] : null}
-        scaleX={item.scaleX}
-        scaleY={item.scaleY}
+        dash={useContext(ImageViewContext)?.suggestion ? [10, 10] : null}
+        scaleX={item.scaleX || 1}
+        scaleY={item.scaleY || 1}
         opacity={1}
-        rotation={item.rotation}
-        draggable={!item.isReadOnly()}
-        name={`${item.id} _transformable`}
+        rotation={item.rotation || 0}
+        draggable={!item.isReadOnly?.() || false}
+        name={`${item.id || 'unknown'} _transformable`}
         {...eventHandlers}
         onMouseOver={() => {
           if (store.annotationStore.selected.isLinkingMode) {

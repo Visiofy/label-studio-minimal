@@ -105,6 +105,40 @@ const globalLastSelection = {
   },
   _labelValue: null,
   _labelGroupName: null,
+  _recentlyInteracted: false,
+  _lastTaskId: null,
+  _lastInteractionTime: 0,
+
+  // Traccia interazioni recenti dell'utente
+  setRecentInteraction() {
+    this._recentlyInteracted = true;
+    this._lastInteractionTime = Date.now();
+
+    // Reset automatico dopo 1 secondo
+    setTimeout(() => {
+      this._recentlyInteracted = false;
+    }, 1000);
+  },
+
+  get hasRecentInteraction() {
+    // Considera "recente" se l'ultima interazione è stata meno di 1 secondo fa
+    return this._recentlyInteracted || (Date.now() - this._lastInteractionTime < 1000);
+  },
+
+  // Verifica se siamo in un nuovo task
+  isNewTask(currentTaskId) {
+    if (this._lastTaskId !== currentTaskId) {
+      this._lastTaskId = currentTaskId;
+      return true;
+    }
+    return false;
+  },
+
+  // Reset esplicito per nuovi task
+  resetForNewTask() {
+    this._recentlyInteracted = false;
+    this._lastInteractionTime = 0;
+  }
 };
 
 const Model = types
@@ -165,11 +199,23 @@ const Model = types
       globalLastSelection.labelGroupName = self.parent?.name;
     },
 
-    // Tenta di ripristinare l'ultima selezione
+    // Tenta di ripristinare l'ultima selezione solo se appropriato
     tryRestoreLastSelection() {
-      if (self.wasLastSelected() && !self.selected && !self.initiallySelected) {
+      // Non ripristinare se l'utente ha interagito di recente
+      if (globalLastSelection.hasRecentInteraction) {
+        return;
+      }
+
+      const currentTaskId = self.annotation?.task?.id;
+      const isNewTask = globalLastSelection.isNewTask(currentTaskId);
+
+      // Solo per nuovi task
+      if (isNewTask && self.wasLastSelected() && !self.selected && !self.initiallySelected) {
         if (self.parent && !self.annotation?.isReadOnly()) {
           try {
+            // Reset per il nuovo task
+            globalLastSelection.resetForNewTask();
+
             if (self.parent.shouldBeUnselected) {
               self.parent.unselectAll();
             }
@@ -185,6 +231,8 @@ const Model = types
      * Select label
      */
     toggleSelected() {
+      // Traccia che l'utente ha interagito di recente
+      globalLastSelection.setRecentInteraction();
       let sameObjectSelectedRegions = [];
 
       if (self.annotation.selectedDrawingRegions.length > 0) {

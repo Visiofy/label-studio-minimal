@@ -20,7 +20,7 @@
 //  * <!--Basic labeling configuration for applying labels to rectangular bounding boxes on an image -->
 //  * <View>
 //  *   <RectangleLabels name="labels" toName="image">
-//  *     <Label value="Person" />
+//  *     <Label value="Person" />1
 //  *     <Label value="Animal" />
 //  *   </RectangleLabels>
 //  *   <Image name="image" value="$image" />
@@ -335,7 +335,8 @@ const Composition = types.compose(
 const RectangleLabelsModel = types.compose("RectangleLabelsModel", Composition);
 
 const HtxRectangleLabels = observer(({ item }) => {
-  return <HtxLabels item={item} />;
+  // Hide native RectangleLabels component - custom menu handles this
+  return null;
 });
 
 Registry.addTag("rectanglelabels", RectangleLabelsModel, HtxRectangleLabels);

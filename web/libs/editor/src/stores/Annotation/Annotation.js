@@ -935,6 +935,7 @@ const _Annotation = types
     },
 
     createResult(areaValue, resultValue, control, object, skipAfrerCreate = false) {
+      console.log('[Annotation.createResult] start, control:', control?.name, 'object:', object?.name);
       // Without correct validation object may be null, but it it shouldn't be so in results - so we should find any
       if (!object && control.type === "textarea") {
         object = self.objects[0];
@@ -960,13 +961,20 @@ const _Annotation = types
         results: [result],
       };
 
+      console.log('[Annotation.createResult] calling areas.put with areaRaw...');
+      console.log('[Annotation.createResult] current regions count before put:', self.regions?.length);
       // TODO: MST is crashing if we don't validate areas?, this problem isn't
       // happening locally. So to reproduce you have to test in production or environment
       const area = self?.areas?.put(areaRaw);
+      console.log('[Annotation.createResult] areas.put result:', area ? 'success' : 'failed');
+      console.log('[Annotation.createResult] current regions count after put:', self.regions?.length);
 
       objectTag?.afterResultCreated?.(area);
 
-      if (!area) return;
+      if (!area) {
+        console.log('[Annotation.createResult] no area created, returning null');
+        return;
+      }
 
       // This is added mostly for the reason of updating indexes in labels
       // for the elements (like highlights in text) that won't be dynamically changed
@@ -976,6 +984,7 @@ const _Annotation = types
       if (!area.classification) getEnv(self).events.invoke("entityCreate", area);
       if (!skipAfrerCreate) self.afterCreateResult(area, control);
 
+      console.log('[Annotation.createResult] finished, returning area:', area.id);
       return area;
     },
 

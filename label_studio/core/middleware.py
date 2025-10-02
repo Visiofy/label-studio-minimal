@@ -248,4 +248,10 @@ class HumanSignalCspMiddleware(CSPMiddleware):
                 response['Content-Security-Policy'] = csp_policy
                 del response['Content-Security-Policy-Report-Only']
             delattr(response, '_override_report_only_csp')
+
+        # Handle Cross-Origin-Opener-Policy for HTTP environments
+        # Remove COOP header when served over HTTP as it's not trustworthy
+        if not request.is_secure() and 'Cross-Origin-Opener-Policy' in response:
+            del response['Cross-Origin-Opener-Policy']
+
         return response

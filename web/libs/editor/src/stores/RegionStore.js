@@ -1,4 +1,4 @@
-import { destroy, detach, getEnv, getParent, onPatch, types } from "mobx-state-tree";
+import { destroy, detach, getEnv, getParent, isAlive, onPatch, types } from "mobx-state-tree";
 
 import { Hotkey } from "../core/Hotkey";
 import { isDefined } from "../utils/utilities";
@@ -6,6 +6,27 @@ import { AllRegionsType } from "../regions";
 import { debounce } from "../utils/debounce";
 import Tree, { TRAVERSE_STOP } from "../core/Tree";
 import { FF_DEV_2755, isFF } from "../utils/feature-flags";
+
+const safeMobxAccess = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (error) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
 
 const hotkeys = Hotkey("RegionStore");
 
@@ -36,7 +57,8 @@ const SelectionMap = types
         return self.selected.size;
       },
       get list() {
-        return Array.from(self.selected.values());
+        if (!isSafeToUse(self)) return [];
+        return safeMobxAccess(() => Array.from(self.selected.values()), []);
       },
       isSelected(region) {
         return self.selected.has(region.id);

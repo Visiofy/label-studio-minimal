@@ -18,21 +18,33 @@ enum DragOverHeightClasses {
 
 const removeHoverClasses = () => {
   classAddedTabs.forEach((tab) => {
-    tab?.classList.remove(DragOverHeightClasses.tabLeft);
-    tab?.classList.remove(DragOverHeightClasses.tabRight);
-    tab?.classList.remove(DragOverHeightClasses.emptyTabSpace);
+    try {
+      if (tab && tab.classList) {
+        tab.classList.remove(DragOverHeightClasses.tabLeft);
+        tab.classList.remove(DragOverHeightClasses.tabRight);
+        tab.classList.remove(DragOverHeightClasses.emptyTabSpace);
+      }
+    } catch (error) {
+      console.warn('[Tabs] Error removing hover classes:', error.message);
+    }
   });
 };
 
 const addHoverClasses = (side?: Side, dropTarget?: Element) => {
-  classAddedTabs.push(dropTarget);
-  let draggingClass;
+  if (dropTarget && dropTarget.classList) {
+    classAddedTabs.push(dropTarget);
+    let draggingClass;
 
-  if (side === Side.left) draggingClass = DragOverHeightClasses.tabLeft;
-  if (side === Side.right) draggingClass = DragOverHeightClasses.tabRight;
-  if (side === undefined) draggingClass = DragOverHeightClasses.emptyTabSpace;
+    if (side === Side.left) draggingClass = DragOverHeightClasses.tabLeft;
+    if (side === Side.right) draggingClass = DragOverHeightClasses.tabRight;
+    if (side === undefined) draggingClass = DragOverHeightClasses.emptyTabSpace;
 
-  draggingClass && dropTarget?.classList.add(draggingClass);
+    try {
+      draggingClass && dropTarget.classList.add(draggingClass);
+    } catch (error) {
+      console.warn('[Tabs] Error adding hover class:', error.message);
+    }
+  }
 };
 
 const Tab = ({

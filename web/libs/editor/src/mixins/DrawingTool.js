@@ -1,10 +1,31 @@
-import { types } from "mobx-state-tree";
+import { types, isAlive } from "mobx-state-tree";
 
 import Utils from "../utils";
 import throttle from "lodash.throttle";
 import { MIN_SIZE } from "../tools/Base";
 import { FF_DEV_3793, isFF } from "../utils/feature-flags";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH } from "../components/ImageView/Image";
+
+const safeMobxAccess = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (error) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX DrawingTool] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
 
 const DrawingTool = types
   .model("DrawingTool", {
@@ -119,15 +140,40 @@ const DrawingTool = types
   .actions((self) => {
     return {
       createDrawingRegion(opts) {
-        const control = self.control;
-        const resultValue = control.getResultValue();
+        try {
+          const control = safeMobxAccess(() => self.control);
+          if (!control || !isSafeToUse(control)) {
+            console.warn('[DrawingTool] Control not available for createDrawingRegion');
+            return null;
+          }
 
-        self.currentArea = self.obj.createDrawingRegion(opts, resultValue, control, false);
-        self.currentArea.setDrawing(true);
+          const resultValue = safeMobxAccess(() => control.getResultValue());
+          if (!resultValue) {
+            console.warn('[DrawingTool] No result value available');
+            return null;
+          }
 
-        self.applyActiveStates(self.currentArea);
-        self.annotation.setIsDrawing(true);
-        return self.currentArea;
+          const obj = safeMobxAccess(() => self.obj);
+          if (!obj || !isSafeToUse(obj)) {
+            console.warn('[DrawingTool] Object not available for createDrawingRegion');
+            return null;
+          }
+
+          self.currentArea = safeMobxAccess(() => obj.createDrawingRegion(opts, resultValue, control, false));
+          if (!self.currentArea || !isSafeToUse(self.currentArea)) {
+            console.warn('[DrawingTool] Failed to create drawing region');
+            return null;
+          }
+
+          safeMobxAccess(() => self.currentArea.setDrawing(true));
+          safeMobxAccess(() => self.applyActiveStates(self.currentArea));
+          safeMobxAccess(() => self.annotation.setIsDrawing(true));
+
+          return self.currentArea;
+        } catch (error) {
+          console.error('[DrawingTool] Error creating drawing region:', error);
+          return null;
+        }
       },
       resumeUnfinishedRegion(existingUnclosedPolygon) {
         self.currentArea = existingUnclosedPolygon;
@@ -139,9 +185,14 @@ const DrawingTool = types
         self.listenForClose?.();
       },
       commitDrawingRegion() {
+        console.log('[DrawingTool.commitDrawingRegion] start, getting currentArea...');
         const { currentArea, control, obj } = self;
 
-        if (!currentArea) return;
+        if (!currentArea) {
+          console.log('[DrawingTool.commitDrawingRegion] no currentArea, returning');
+          return;
+        }
+        console.log('[DrawingTool.commitDrawingRegion] currentArea found, creating value...');
         const source = currentArea.toJSON();
         const value = Object.keys(currentArea.serialize().value).reduce(
           (value, key) => {
@@ -152,7 +203,9 @@ const DrawingTool = types
         );
 
         const [main, ...rest] = currentArea.results;
+        console.log('[DrawingTool.commitDrawingRegion] calling annotation.createResult...');
         const newArea = self.annotation.createResult(value, main.value.toJSON(), control, obj);
+        console.log('[DrawingTool.commitDrawingRegion] newArea created:', newArea ? 'success' : 'failed');
 
         //when user is using two different labels tag to draw a region, the other labels will be added to the region
         rest.forEach((r) => newArea.addResult(r.toJSON()));
@@ -160,6 +213,7 @@ const DrawingTool = types
         currentArea.setDrawing(false);
         self.deleteRegion();
         newArea.notifyDrawingFinished();
+        console.log('[DrawingTool.commitDrawingRegion] finished, returning newArea');
         return newArea;
       },
       createRegion(opts, skipAfterCreate = false) {
@@ -175,10 +229,12 @@ const DrawingTool = types
         self.obj.deleteDrawingRegion();
       },
       applyActiveStates(area) {
-        const activeStates = self.obj.activeStates();
+        const activeStates = safeMobxAccess(() => self.obj.activeStates()) || [];
 
         activeStates.forEach((state) => {
-          area.setValue(state);
+          if (state && isSafeToUse(state)) {
+            safeMobxAccess(() => area.setValue(state));
+          }
         });
       },
 
@@ -191,21 +247,40 @@ const DrawingTool = types
       },
 
       startDrawing(x, y) {
-        self.annotation.history.freeze();
-        self.mode = "drawing";
-        self.currentArea = self.createDrawingRegion(self.createRegionOptions({ x, y }));
+        try {
+          safeMobxAccess(() => self.annotation?.history?.freeze());
+          self.mode = "drawing";
+
+          const regionOptions = safeMobxAccess(() => self.createRegionOptions({ x, y }));
+          if (!regionOptions) {
+            console.warn('[DrawingTool] Failed to create region options');
+            return false;
+          }
+
+          self.currentArea = self.createDrawingRegion(regionOptions);
+          return self.currentArea !== null;
+        } catch (error) {
+          console.error('[DrawingTool] Error starting drawing:', error);
+          self.mode = "viewing";
+          return false;
+        }
       },
       finishDrawing() {
+        console.log('[DrawingTool.finishDrawing] start, checking beforeCommitDrawing...');
         if (!self.beforeCommitDrawing()) {
+          console.log('[DrawingTool.finishDrawing] beforeCommitDrawing failed, deleting region');
           self.deleteRegion();
           if (self.control.type === self.tagTypes.stateTypes) self.annotation.unselectAll(true);
           self._resetState();
         } else {
+          console.log('[DrawingTool.finishDrawing] beforeCommitDrawing passed, calling _finishDrawing');
           self._finishDrawing();
         }
       },
       _finishDrawing() {
+        console.log('[DrawingTool._finishDrawing] start, calling commitDrawingRegion');
         self.commitDrawingRegion();
+        console.log('[DrawingTool._finishDrawing] finished commitDrawingRegion, resetting state');
         self._resetState();
       },
       _resetState() {
@@ -217,6 +292,12 @@ const DrawingTool = types
   });
 
 const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
+  .volatile(() => ({
+    currentMode: 0, // DEFAULT_MODE
+    modeAfterMouseMove: 0, // DEFAULT_MODE
+    startPoint: null,
+    endPoint: { x: 0, y: 0 },
+  }))
   .views((self) => ({
     get defaultDimensions() {
       return {
@@ -229,36 +310,39 @@ const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
     const DEFAULT_MODE = 0;
     const DRAG_MODE = 1;
     const TWO_CLICKS_MODE = 2;
-    let currentMode = DEFAULT_MODE;
-    let modeAfterMouseMove = DEFAULT_MODE;
-    let startPoint = null;
-    let endPoint = { x: 0, y: 0 };
     const Super = {
       finishDrawing: self.finishDrawing,
     };
 
     return {
       updateDraw: throttle((x, y) => {
-        if (currentMode === DEFAULT_MODE) return;
+        if (self.currentMode === DEFAULT_MODE) return;
         self.draw(x, y);
       }, 48), // 3 frames, optimized enough and not laggy yet
 
       draw(x, y) {
+        console.log('[TwoPointsDrawingTool.draw] start, getting current area...');
         const shape = self.getCurrentArea();
 
-        if (!shape) return;
-        const isEllipse = shape.type.includes("ellipse");
-        const maxStageWidth = isFF(FF_DEV_3793) ? RELATIVE_STAGE_WIDTH : self.obj.stageWidth;
-        const maxStageHeight = isFF(FF_DEV_3793) ? RELATIVE_STAGE_HEIGHT : self.obj.stageHeight;
+        console.log('[TwoPointsDrawingTool.draw] current area:', shape ? 'found' : 'not found');
+        if (!shape || !isSafeToUse(shape)) return;
+
+        const isEllipse = safeMobxAccess(() => shape.type?.includes("ellipse"), false);
+        const maxStageWidth = isFF(FF_DEV_3793) ? RELATIVE_STAGE_WIDTH : safeMobxAccess(() => self.obj.stageWidth, 800);
+        const maxStageHeight = isFF(FF_DEV_3793) ? RELATIVE_STAGE_HEIGHT : safeMobxAccess(() => self.obj.stageHeight, 600);
+
+        const startX = safeMobxAccess(() => shape.startX, 0);
+        const startY = safeMobxAccess(() => shape.startY, 0);
+        const rotation = safeMobxAccess(() => shape.rotation, 0);
 
         let { x1, y1, x2, y2 } = isEllipse
           ? {
-              x1: shape.startX,
-              y1: shape.startY,
+              x1: startX,
+              y1: startY,
               x2: x,
               y2: y,
             }
-          : Utils.Image.reverseCoordinates({ x: shape.startX, y: shape.startY }, { x, y });
+          : Utils.Image.reverseCoordinates({ x: startX, y: startY }, { x, y });
 
         x1 = Math.max(0, x1);
         y1 = Math.max(0, y1);
@@ -272,50 +356,92 @@ const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
           distY = Math.min(distY, Math.min(y1, maxStageHeight - y1));
         }
 
-        shape.setPositionInternal(x1, y1, distX, distY, shape.rotation);
+        safeMobxAccess(() => shape.setPositionInternal(x1, y1, distX, distY, rotation));
       },
 
       finishDrawing(x, y) {
-        startPoint = null;
+        console.log('[TwoPointsDrawingTool.finishDrawing] start, calling Super.finishDrawing');
+        self.startPoint = null;
         Super.finishDrawing(x, y);
-        currentMode = DEFAULT_MODE;
-        modeAfterMouseMove = DEFAULT_MODE;
+        self.currentMode = DEFAULT_MODE;
+        self.modeAfterMouseMove = DEFAULT_MODE;
+        console.log('[TwoPointsDrawingTool.finishDrawing] finished');
       },
 
       mousedownEv(ev, [x, y]) {
-        if (!self.canStartDrawing()) return;
-        if (!self.isAllowedInteraction(ev)) return;
-        startPoint = { x, y };
-        if (currentMode === DEFAULT_MODE) {
-          modeAfterMouseMove = DRAG_MODE;
+        console.log('[TwoPointsDrawingTool.mousedownEv] Entry - startPoint:', self.startPoint, 'currentMode:', self.currentMode, 'coords:', x, y);
+
+        if (!self.canStartDrawing()) {
+          console.log('[TwoPointsDrawingTool.mousedownEv] Cannot start drawing, returning');
+          return;
+        }
+        if (!self.isAllowedInteraction(ev)) {
+          console.log('[TwoPointsDrawingTool.mousedownEv] Interaction not allowed, returning');
+          return;
+        }
+
+        // CRITICAL CHECK: Prevent starting drawing if tool switching is in progress
+        const imageObject = self.obj;
+        if (imageObject && imageObject._toolSwitchingInProgress) {
+          console.log("[TwoPointsDrawingTool.mousedownEv] Tool switching in progress, ignoring mousedown");
+          return;
+        }
+
+        // Reset state if we're starting fresh to avoid lingering points from tool switches
+        if (self.currentMode === DEFAULT_MODE && !self.startPoint) {
+          console.log("[TwoPointsDrawingTool.mousedownEv] Starting fresh drawing session");
+        }
+
+        console.log('[TwoPointsDrawingTool.mousedownEv] Setting startPoint to:', { x, y });
+        self.startPoint = { x, y };
+        if (self.currentMode === DEFAULT_MODE) {
+          self.modeAfterMouseMove = DRAG_MODE;
+          console.log('[TwoPointsDrawingTool.mousedownEv] Set modeAfterMouseMove to DRAG_MODE');
         }
       },
 
       mousemoveEv(_, [x, y]) {
-        if (currentMode === DEFAULT_MODE && startPoint) {
-          if (!self.comparePointsWithThreshold(startPoint, { x, y })) {
-            currentMode = modeAfterMouseMove;
-            if ([DRAG_MODE, TWO_CLICKS_MODE].includes(currentMode)) {
-              self.startDrawing(startPoint.x, startPoint.y);
-              if (!self.isDrawing) {
-                currentMode = DEFAULT_MODE;
-                return;
+        try {
+          console.log('[TwoPointsDrawingTool.mousemoveEv] currentMode:', self.currentMode, 'startPoint:', self.startPoint, 'coords:', x, y);
+
+          if (self.currentMode === DEFAULT_MODE && self.startPoint) {
+            if (!self.comparePointsWithThreshold(self.startPoint, { x, y })) {
+              console.log('[TwoPointsDrawingTool.mousemoveEv] Threshold exceeded, switching mode from DEFAULT to:', self.modeAfterMouseMove);
+              self.currentMode = self.modeAfterMouseMove;
+              if ([DRAG_MODE, TWO_CLICKS_MODE].includes(self.currentMode)) {
+                console.log('[TwoPointsDrawingTool.mousemoveEv] Starting drawing at startPoint:', self.startPoint);
+                const started = self.startDrawing(self.startPoint.x, self.startPoint.y);
+                if (!started || !safeMobxAccess(() => self.isDrawing, false)) {
+                  console.log('[TwoPointsDrawingTool.mousemoveEv] Failed to start drawing, resetting to DEFAULT_MODE');
+                  self.currentMode = DEFAULT_MODE;
+                  return;
+                }
               }
             }
           }
-        }
-        if (!self.isDrawing) return;
-        if ([DRAG_MODE, TWO_CLICKS_MODE].includes(currentMode)) {
-          self.updateDraw(x, y);
+          if (!safeMobxAccess(() => self.isDrawing, false)) {
+            console.log('[TwoPointsDrawingTool.mousemoveEv] Not drawing, returning');
+            return;
+          }
+          if ([DRAG_MODE, TWO_CLICKS_MODE].includes(self.currentMode)) {
+            console.log('[TwoPointsDrawingTool.mousemoveEv] Updating draw');
+            self.updateDraw(x, y);
+          }
+        } catch (error) {
+          console.error('[DrawingTool TwoPoints] Error in mousemove:', error);
+          self.currentMode = DEFAULT_MODE;
         }
       },
 
       mouseupEv(_, [x, y]) {
-        if (currentMode !== DRAG_MODE) return;
-        endPoint = { x, y };
+        console.log('[TwoPointsDrawingTool.mouseupEv] start, mode:', self.currentMode, 'isDrawing:', self.isDrawing);
+        if (self.currentMode !== DRAG_MODE) return;
+        self.endPoint = { x, y };
         if (!self.isDrawing) return;
+        console.log('[TwoPointsDrawingTool.mouseupEv] calling draw and finishDrawing');
         self.draw(x, y);
         self.finishDrawing(x, y);
+        console.log('[TwoPointsDrawingTool.mouseupEv] finished');
       },
 
       clickEv(ev, [x, y]) {
@@ -323,13 +449,13 @@ const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
         if (!self.isAllowedInteraction(ev)) return;
         // @todo: here is a potential problem with endPoint
         // it may be incorrect due to it may be not set at this moment
-        if (startPoint && endPoint && !self.comparePointsWithThreshold(startPoint, endPoint)) return;
-        if (currentMode === DEFAULT_MODE) {
-          modeAfterMouseMove = TWO_CLICKS_MODE;
-        } else if (self.isDrawing && currentMode === TWO_CLICKS_MODE) {
+        if (self.startPoint && self.endPoint && !self.comparePointsWithThreshold(self.startPoint, self.endPoint)) return;
+        if (self.currentMode === DEFAULT_MODE) {
+          self.modeAfterMouseMove = TWO_CLICKS_MODE;
+        } else if (self.isDrawing && self.currentMode === TWO_CLICKS_MODE) {
           self.draw(x, y);
           self.finishDrawing(x, y);
-          currentMode = DEFAULT_MODE;
+          self.currentMode = DEFAULT_MODE;
         }
       },
 
@@ -345,7 +471,7 @@ const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
           dY = self.obj.canvasToInternalY(dY);
         }
 
-        if (currentMode === DEFAULT_MODE) {
+        if (self.currentMode === DEFAULT_MODE) {
           self.startDrawing(x, y);
           if (!self.isDrawing) return;
           x += dX;
@@ -354,6 +480,17 @@ const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
           self.finishDrawing(x, y);
         }
       },
+
+      // Handle tool switching - reset internal state
+      handleToolSwitch(newTool) {
+        console.log('[TwoPointsDrawingTool.handleToolSwitch] Before reset - startPoint:', self.startPoint, 'currentMode:', self.currentMode);
+        self.startPoint = null;
+        self.endPoint = { x: 0, y: 0 };
+        self.currentMode = DEFAULT_MODE;
+        self.modeAfterMouseMove = DEFAULT_MODE;
+        console.log('[TwoPointsDrawingTool.handleToolSwitch] After reset - startPoint:', self.startPoint, 'currentMode:', self.currentMode);
+      },
+
     };
   });
 
@@ -472,6 +609,16 @@ const MultipleClicksDrawingTool = DrawingTool.named("MultipleClicksMixin")
         self.nextPoint(x + dX, y);
         self.nextPoint(x + dX / 2, y + Math.sin(Math.PI / 3) * dY);
         self.finishDrawing();
+      },
+
+      // Handle tool switching - reset internal state
+      handleToolSwitch(newTool) {
+        console.log('[MultipleClicksDrawingTool.handleToolSwitch] Resetting state for tool switch');
+        startPoint = { x: 0, y: 0 };
+        pointsCount = 0;
+        lastPoint = { x: -1, y: -1 };
+        lastEvent = 0;
+        lastClickTs = 0;
       },
     };
   });
@@ -616,6 +763,15 @@ const ThreePointsDrawingTool = DrawingTool.named("ThreePointsDrawingTool")
           self.draw(x, y);
           self.finishDrawing(x, y);
         }
+      },
+
+      // Handle tool switching - reset internal state
+      handleToolSwitch(newTool) {
+        console.log('[ThreePointsDrawingTool.handleToolSwitch] Resetting state for tool switch');
+        points = [];
+        lastEvent = 0;
+        currentMode = DEFAULT_MODE;
+        startPoint = null;
       },
     };
   });

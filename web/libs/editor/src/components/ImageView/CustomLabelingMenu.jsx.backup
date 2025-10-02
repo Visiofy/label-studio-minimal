@@ -1,0 +1,1759 @@
+import React, { Component } from "react";
+import { observer } from "mobx-react";
+import { isAlive } from "mobx-state-tree";
+import { Hotkey } from "../../core/Hotkey";
+import { Range } from "../../common/Range/Range";
+
+const hotkeys = Hotkey("CustomLabelingMenu");
+
+const IconDot = ({ size }) => (
+  <span
+    style={{
+      display: "block",
+      width: size,
+      height: size,
+      background: "rgba(0, 0, 0, 0.25)",
+      borderRadius: "100%",
+    }}
+  />
+);
+
+export default observer(
+  class CustomLabelingMenu extends Component {
+    constructor(props) {
+      super(props);
+
+      // Carica le preferenze salvate dal localStorage
+      const savedPrefs = this.loadSavedPreferences();
+
+      this.state = {
+        pendingLabel: savedPrefs.lastLabel,
+        pendingTool: savedPrefs.lastTool,
+      };
+      this._isMounted = false;
+      this.lastMenuInteraction = null;
+      this.allowingAutomaticChange = false;
+    }
+
+    componentDidMount() {
+      this._isMounted = true;
+
+      // COMPLETELY override Label Studio hotkeys to route through our menu
+      this.setupCustomHotkeys();
+
+
+      // Log current project configuration
+      this.logProjectConfiguration();
+
+      // Sync state with Label Studio
+      this.syncWithLabelStudio();
+
+      // Applica le preferenze salvate se esistono
+      this.applyLoadedPreferences();
+
+      // REMOVED: DOM-based region click detection - too invasive
+    }
+
+    // Carica le preferenze salvate dal localStorage
+    loadSavedPreferences = () => {
+      try {
+        const saved = localStorage.getItem('customLabelingMenu_preferences');
+        if (saved) {
+          const prefs = JSON.parse(saved);
+          console.log("[CustomMenu] Loaded saved preferences:", prefs);
+          return {
+            lastTool: prefs.lastTool || null,
+            lastLabel: prefs.lastLabel || null
+          };
+        }
+      } catch (error) {
+        console.log("[CustomMenu] Error loading preferences:", error);
+      }
+
+      return {
+        lastTool: null,
+        lastLabel: null
+      };
+    };
+
+    // Salva le preferenze nel localStorage
+    savePreferences = (tool, label) => {
+      try {
+        const prefs = {
+          lastTool: tool,
+          lastLabel: label,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('customLabelingMenu_preferences', JSON.stringify(prefs));
+        console.log("[CustomMenu] Saved preferences:", prefs);
+      } catch (error) {
+        console.log("[CustomMenu] Error saving preferences:", error);
+      }
+    };
+
+    // Applica le preferenze caricate al mount del componente
+    applyLoadedPreferences = () => {
+      const { pendingTool, pendingLabel } = this.state;
+
+      // Se abbiamo sia tool che label salvati, applicali
+      if (pendingTool && pendingLabel) {
+        console.log(`[CustomMenu] Applying loaded preferences: ${pendingTool} + ${pendingLabel}`);
+
+        // Applica con un piccolo delay per dare tempo al sistema di inizializzarsi
+        setTimeout(() => {
+          if (this._isMounted) {
+            this.applyToolLabelCombination(pendingTool, pendingLabel);
+          }
+        }, 500);
+      } else if (pendingTool) {
+        // Solo il tool è salvato
+        console.log(`[CustomMenu] Applying loaded tool: ${pendingTool}`);
+        setTimeout(() => {
+          if (this._isMounted) {
+            this.activateToolOnly(pendingTool);
+          }
+        }, 500);
+      }
+    };
+
+    setupCustomHotkeys = () => {
+      console.log("[CustomMenu] Setting up DIRECT event interception...");
+
+      try {
+        // STEP 1: Set up direct document-level event interception (most reliable)
+        this.setupDirectEventInterception();
+
+        // STEP 2: Still disable native systems as backup
+        this.disableAllNativeHotkeys();
+
+        // STEP 3: Set up our hotkey system as secondary layer
+        this.setupOurHotkeySystem();
+
+        console.log("[CustomMenu] Direct event interception established");
+
+      } catch (e) {
+        console.log("[CustomMenu] Error in direct interception setup:", e);
+      }
+    };
+
+    // Direct document-level event interception - highest priority
+    setupDirectEventInterception = () => {
+      console.log("[CustomMenu] Setting up direct keydown interception...");
+
+      this.directKeyHandler = (event) => {
+        if (!this._isMounted) return;
+
+        const key = event.key.toLowerCase();
+        const isOurKey = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'b', 'r', 'k', 'e'].includes(key);
+
+        if (isOurKey) {
+          console.log(`[CustomMenu] Intercepted key: ${key}`);
+
+          // STOP the event from reaching Label Studio
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+
+          // Handle our custom logic
+          this.handleDirectKeypress(key);
+
+          return false;
+        }
+      };
+
+      // Attach to document with highest priority (capture phase)
+      document.addEventListener('keydown', this.directKeyHandler, { capture: true, passive: false });
+      console.log("[CustomMenu] Direct keydown handler attached to document");
+    };
+
+    // Handle our custom key logic
+    handleDirectKeypress = (key) => {
+      console.log(`[CustomMenu] Handling direct keypress: ${key}`);
+
+      switch(key) {
+        case 'b':
+          this.handleBrushHotkey();
+          break;
+        case 'r':
+          this.handleRectangleHotkey();
+          break;
+        case 'k':
+          this.handleKeypointHotkey();
+          break;
+        case 'e':
+          this.handleEraserHotkey();
+          break;
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+          this.handleLabelNumberHotkey(parseInt(key));
+          break;
+      }
+    };
+
+    // Completely disable all native Label Studio hotkey systems
+    disableAllNativeHotkeys = () => {
+      console.log("[CustomMenu] Disabling ALL native hotkey systems...");
+
+      // Remove from keymaster (global hotkey manager)
+      const keymaster = window.key || window.hotkeys;
+      if (keymaster) {
+        // Clear ALL registered hotkeys, not just ours
+        keymaster.unbind();
+        console.log("[CustomMenu] Cleared all keymaster bindings");
+      }
+
+      // Disable Label Studio's internal hotkey systems
+      try {
+        const { item } = this.props;
+        if (item && isAlive(item)) {
+          const annotation = item?.annotation;
+          if (annotation && isAlive(annotation) && annotation?.root?.children) {
+            annotation.root.children.forEach(control => {
+              if (control && isAlive(control)) {
+                // Disable ALL hotkey functionality on controls
+                if (control.hotkeys) {
+                  if (typeof control.hotkeys === 'object' && control.hotkeys.stop) {
+                    control.hotkeys.stop();
+                  }
+                  control.hotkeys = null;
+                }
+
+                // Disable individual label hotkeys completely
+                if (control.children && Array.isArray(control.children)) {
+                  control.children.forEach(label => {
+                    if (label && isAlive(label) && label.hotkey) {
+                      label.hotkey = null;
+                    }
+                  });
+                }
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.log("[CustomMenu] Error disabling native systems:", e);
+      }
+
+      // Clear our own hotkey system too
+      try {
+        const keysToRemove = ["b", "r", "k", "e", "Escape"];
+        for (let i = 1; i <= 9; i++) {
+          keysToRemove.push(i.toString());
+        }
+        keysToRemove.forEach(key => {
+          try { hotkeys.removeKey(key); } catch (e) {}
+        });
+      } catch (e) {}
+    };
+
+    // Set up our own complete hotkey system
+    setupOurHotkeySystem = () => {
+      console.log("[CustomMenu] Setting up our complete hotkey system...");
+
+      try {
+        // Tool hotkeys
+        hotkeys.addKey("b", this.handleBrushHotkey, "Custom Brush selection");
+        hotkeys.addKey("r", this.handleRectangleHotkey, "Custom Rectangle selection");
+        hotkeys.addKey("k", this.handleKeypointHotkey, "Custom Keypoint selection");
+        hotkeys.addKey("e", this.handleEraserHotkey, "Custom Eraser selection");
+
+        // Label number hotkeys
+        for (let i = 1; i <= 9; i++) {
+          hotkeys.addKey(i.toString(), () => this.handleLabelNumberHotkey(i), `Custom label ${i} selection`);
+        }
+
+        // ESC key
+        hotkeys.addKey("Escape", this.handleEscapeKey, "Clear menu selections");
+
+        console.log("[CustomMenu] Our hotkey system established");
+      } catch (e) {
+        console.log("[CustomMenu] Error setting up our hotkeys:", e);
+      }
+    };
+
+    // Lightweight monitoring instead of aggressive override
+    setupLightweightMonitoring = () => {
+      // Only monitor and log, don't aggressively override
+      this.monitoringCleanup = setInterval(() => {
+        if (!this._isMounted) return;
+
+        // Just log if native bindings are detected, but don't interfere
+        console.log("[CustomMenu] Monitoring active - direct interception should handle all keys");
+      }, 5000); // Check every 5 seconds, less frequently
+    };
+
+    // Disable native KeyPoint groups and other native hotkey systems
+    disableNativeGroups = () => {
+      try {
+        const { item } = this.props;
+        if (!item || !isAlive(item)) return;
+
+        const annotation = item?.annotation;
+        if (annotation?.root?.children) {
+          annotation.root.children.forEach(control => {
+            if (control?.type?.includes('keypointlabels') && control.hotkeys) {
+              // Disable KeyPoint group hotkeys
+              if (typeof control.hotkeys === 'object' && control.hotkeys.stop) {
+                control.hotkeys.stop();
+              }
+            }
+          });
+        }
+      } catch (e) {
+        // Silently ignore errors in disabling native groups
+      }
+    };
+
+    // Log project configuration to understand label setup
+    logProjectConfiguration = () => {
+      try {
+        const { item } = this.props;
+        if (!item || !isAlive(item)) return;
+
+        const annotation = item?.annotation;
+        if (!annotation || !isAlive(annotation) || !annotation?.root?.children) return;
+
+        console.log("[CustomMenu] === PROJECT CONFIGURATION ===");
+
+        annotation.root.children.forEach(control => {
+          if (control && isAlive(control)) {
+            console.log(`[CustomMenu] Control: ${control.type} (name: ${control.name})`);
+
+            if (control.children && Array.isArray(control.children)) {
+              control.children.forEach(label => {
+                if (label && isAlive(label)) {
+                  console.log(`[CustomMenu]   - Label: ${label.value} (background: ${label.background})`);
+                }
+              });
+            }
+          }
+        });
+
+        // Check tools configuration
+        const toolsManager = item.getToolsManager();
+        if (toolsManager) {
+          const tools = toolsManager.allTools();
+          console.log("[CustomMenu] === TOOLS CONFIGURATION ===");
+          tools.forEach(tool => {
+            console.log(`[CustomMenu] Tool: ${tool.fullName} (control: ${tool.control?.name}, type: ${tool.control?.type})`);
+          });
+        }
+
+        console.log("[CustomMenu] === END CONFIGURATION ===");
+      } catch (error) {
+        console.log("[CustomMenu] Error logging configuration:", error);
+      }
+    };
+
+    // Frequent sync removed - problem was in ToolsManager cursor reset
+
+    componentWillUnmount() {
+      this._isMounted = false;
+      console.log("[CustomMenu] Cleaning up direct interception system...");
+
+      // Remove direct document event handler
+      if (this.directKeyHandler) {
+        document.removeEventListener('keydown', this.directKeyHandler, { capture: true });
+        this.directKeyHandler = null;
+        console.log("[CustomMenu] Direct keydown handler removed");
+      }
+
+      // Remove region click detection handler
+      if (this.regionClickHandler) {
+        document.removeEventListener('click', this.regionClickHandler, { capture: true });
+        this.regionClickHandler = null;
+        console.log("[CustomMenu] DOM region click handler removed");
+      }
+
+      // Stop monitoring
+      if (this.monitoringCleanup) {
+        clearInterval(this.monitoringCleanup);
+        this.monitoringCleanup = null;
+      }
+
+      // No longer needed - frequent sync removed
+
+      // Clean up our custom hotkeys
+      try {
+        const keysToRemove = ["b", "r", "k", "e", "Escape"];
+        for (let i = 1; i <= 9; i++) {
+          keysToRemove.push(i.toString());
+        }
+
+        keysToRemove.forEach(key => {
+          try { hotkeys.removeKey(key); } catch (e) {}
+        });
+
+        console.log("[CustomMenu] Direct interception cleanup finished");
+      } catch (e) {
+        console.log("[CustomMenu] Error in cleanup:", e);
+      }
+    }
+
+    componentDidUpdate() {
+      // Only sync when there are actual changes, no forcing
+      this.syncWithLabelStudio();
+    }
+
+    // Set up direct DOM event detection for region clicks
+    setupRegionClickDetection = () => {
+      console.log("[CustomMenu] Setting up DOM-based region click detection...");
+
+      // Listen for click events on the document
+      this.regionClickHandler = (event) => {
+        if (!this._isMounted) return;
+
+        // Check if click was on a region element
+        const target = event.target;
+
+        // Look for region-related elements in the DOM
+        let regionElement = target;
+        let regionType = null;
+
+        // Traverse up the DOM to find region elements
+        while (regionElement && regionElement !== document.body) {
+          const classList = regionElement.classList || [];
+          const className = regionElement.className || '';
+
+          // Check for brush region indicators
+          if (className.includes('brush') || className.includes('Brush')) {
+            regionType = 'Brush';
+            break;
+          }
+
+          // Check for rectangle region indicators
+          if (className.includes('rect') || className.includes('Rectangle') ||
+              regionElement.tagName === 'rect') {
+            regionType = 'Rectangle';
+            break;
+          }
+
+          // Check for keypoint region indicators
+          if (className.includes('keypoint') || className.includes('KeyPoint') ||
+              className.includes('point') || regionElement.tagName === 'circle') {
+            regionType = 'Keypoint';
+            break;
+          }
+
+          regionElement = regionElement.parentElement;
+        }
+
+        // If we detected a region click, force the appropriate tool
+        if (regionType && regionType !== this.state.pendingTool) {
+          console.log(`[CustomMenu] DOM detected region click: ${regionType}`);
+
+          // Don't set lastMenuInteraction - this is automatic
+          setTimeout(() => {
+            if (this._isMounted && regionType !== this.state.pendingTool) {
+              console.log(`[CustomMenu] Forcing tool via DOM detection: ${this.state.pendingTool} -> ${regionType}`);
+              this.setState({
+                pendingTool: regionType
+              }, () => {
+                this.applyToolLabelCombination(regionType, this.state.pendingLabel || 'Unknown');
+              });
+            }
+          }, 100); // Small delay to let other handlers process
+        }
+      };
+
+      // Attach the event listener
+      document.addEventListener('click', this.regionClickHandler, { capture: true });
+      console.log("[CustomMenu] DOM region click detection established");
+    };
+
+    // Check selected regions and force appropriate tools in our menu
+    checkSelectedRegionsAndForceTools = () => {
+      // Throttle calls to avoid excessive processing
+      const now = Date.now();
+      if (this.lastRegionCheckTime && (now - this.lastRegionCheckTime) < 100) {
+        return; // Skip if called too frequently
+      }
+      this.lastRegionCheckTime = now;
+
+      // Don't force tool changes if user recently interacted with our menu
+      if (this.lastMenuInteraction && (now - this.lastMenuInteraction) < 1000) {
+        console.log("[CustomMenu] Skipping region forcing - recent menu interaction");
+        return;
+      }
+
+      console.log("[CustomMenu] checkSelectedRegionsAndForceTools called");
+
+      const { item } = this.props;
+
+      if (!item || !isAlive(item)) {
+        console.log("[CustomMenu] checkSelectedRegionsAndForceTools: item not alive");
+        return;
+      }
+
+      try {
+        const annotation = item?.annotation;
+        if (!annotation || !isAlive(annotation) || !annotation.regionStore) {
+          console.log("[CustomMenu] checkSelectedRegionsAndForceTools: annotation/regionStore not available");
+          return;
+        }
+
+        const selectedRegions = annotation.regionStore.selectedRegions || [];
+        console.log("[CustomMenu] checkSelectedRegionsAndForceTools: selectedRegions count:", selectedRegions.length);
+
+        // Try different approaches to find active region
+        let region = null;
+
+        // Approach 1: Selected regions
+        if (selectedRegions.length > 0) {
+          region = selectedRegions[0];
+          console.log("[CustomMenu] Found region via selectedRegions:", region?.type);
+        }
+
+        // Approach 2: Check if there's an active/highlighted region
+        if (!region) {
+          const allRegions = annotation.regionStore.regions || [];
+          console.log("[CustomMenu] Total regions available:", allRegions.length);
+
+          // ONLY look for actually selected regions, not just highlighted (hover)
+          const selectedRegion = allRegions.find(r => r?.selected === true);
+          if (selectedRegion) {
+            region = selectedRegion;
+            console.log("[CustomMenu] Found region via selected:", region?.type);
+          } else {
+            // Fallback: look for highlighted but ONLY if it's been highlighted for a while
+            // This prevents forcing on simple hover
+            const highlightedRegion = allRegions.find(r => r?.highlighted === true);
+            if (highlightedRegion) {
+              console.log("[CustomMenu] Found highlighted region, but ignoring to prevent hover-forcing:", highlightedRegion?.type);
+              // Don't use highlighted region for now
+            }
+          }
+        }
+
+        // Approach 3: Check the annotation's current region
+        if (!region && annotation.currentRegion) {
+          region = annotation.currentRegion;
+          console.log("[CustomMenu] Found region via currentRegion:", region?.type);
+        }
+
+        if (!region || !isAlive(region)) {
+          console.log("[CustomMenu] checkSelectedRegionsAndForceTools: no active region found or not alive");
+          return;
+        }
+
+        // Determine tool based on region type
+        let requiredTool = null;
+        let requiredLabel = null;
+
+        if (region.type === 'brushregion') {
+          requiredTool = 'Brush';
+        } else if (region.type === 'rectangleregion') {
+          requiredTool = 'Rectangle';
+        } else if (region.type === 'keypointregion') {
+          requiredTool = 'Keypoint';
+        }
+
+        // Get region labels
+        if (region.labelings && region.labelings.length > 0) {
+          const labeling = region.labelings[0];
+          if (labeling.selectedValues && labeling.selectedValues.length > 0) {
+            requiredLabel = labeling.selectedValues[0];
+          }
+        }
+
+        console.log("[CustomMenu] Region selected - forcing tool:", {
+          regionType: region.type,
+          regionId: region.id,
+          requiredTool,
+          requiredLabel,
+          currentTool: this.state.pendingTool,
+          currentLabel: this.state.pendingLabel,
+          highlighted: region.highlighted,
+          selected: region.selected,
+          lastMenuInteraction: this.lastMenuInteraction ? Date.now() - this.lastMenuInteraction : 'never'
+        });
+
+        // Force tool/label change if different from current AND not already forced
+        let needsUpdate = false;
+
+        if (requiredTool &&
+            requiredTool !== this.state.pendingTool &&
+            requiredTool !== this.lastForcedTool) {
+          console.log(`[CustomMenu] Forcing tool change: ${this.state.pendingTool} -> ${requiredTool}`);
+          needsUpdate = true;
+        }
+
+        if (requiredLabel &&
+            requiredLabel !== this.state.pendingLabel &&
+            requiredLabel !== this.lastForcedLabel) {
+          console.log(`[CustomMenu] Forcing label change: ${this.state.pendingLabel} -> ${requiredLabel}`);
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+          // Remember what we forced to avoid loops
+          this.lastForcedTool = requiredTool || this.state.pendingTool;
+          this.lastForcedLabel = requiredLabel || this.state.pendingLabel;
+
+          const newTool = requiredTool || this.state.pendingTool;
+          const newLabel = requiredLabel || this.state.pendingLabel;
+          const regionToDeselect = region; // Capture region for callback
+
+          // Don't set lastMenuInteraction - this is not a user menu interaction
+          this.setState({
+            pendingTool: newTool,
+            pendingLabel: newLabel
+          }, () => {
+            // IMPORTANT: Actually apply the tool/label combination to Label Studio
+            console.log(`[CustomMenu] Applying forced combination: ${newTool} + ${newLabel}`);
+            this.applyToolLabelCombination(newTool, newLabel);
+
+            // CRITICAL: Deselect the region to prevent continuous forcing
+            try {
+              if (regionToDeselect && isAlive(regionToDeselect) && regionToDeselect.setSelected) {
+                regionToDeselect.setSelected(false);
+                console.log(`[CustomMenu] Deselected region ${regionToDeselect.id} to prevent loop`);
+              }
+            } catch (error) {
+              console.log("[CustomMenu] Error deselecting region:", error);
+            }
+          });
+
+          // Clear the forced values after a short delay to allow new changes
+          setTimeout(() => {
+            this.lastForcedTool = null;
+            this.lastForcedLabel = null;
+          }, 500); // Increased to 500ms to avoid conflicts
+        }
+
+      } catch (error) {
+        console.log("[CustomMenu] Error in checkSelectedRegionsAndForceTools:", error);
+      }
+    };
+
+    // Sync state with current Label Studio selection - improved version
+    syncWithLabelStudio = () => {
+      // Early return if component is unmounted
+      if (!this._isMounted) return;
+
+      const { item } = this.props;
+
+      // Check if objects are still alive in MST
+      if (!item || !isAlive(item)) {
+        console.log("[CustomMenu] Item not available or not alive, skipping sync");
+        return;
+      }
+
+      try {
+        const toolsManager = item.getToolsManager();
+        if (!toolsManager) {
+          console.log("[CustomMenu] ToolsManager not available, skipping sync");
+          return;
+        }
+
+        const selectedTool = toolsManager.findSelectedTool();
+
+        // Get current tool - be more precise in mapping
+        let currentTool = null;
+        if (selectedTool) {
+          const toolName = selectedTool.fullName?.toLowerCase() || '';
+          if (toolName.includes('eraser')) currentTool = 'Eraser';
+          else if (toolName.includes('brush')) currentTool = 'Brush';
+          else if (toolName.includes('rectangle')) currentTool = 'Rectangle';
+          else if (toolName.includes('keypoint') || toolName.includes('point')) currentTool = 'Keypoint';
+        }
+
+        // DIRECT APPROACH: If Label Studio changed tool, trust that change
+        // The issue is that selectedRegions isn't reliable, but tool changes are
+        const effectiveTool = currentTool;
+        console.log("[CustomMenu] Direct tool sync:", {
+          currentTool,
+          effectiveTool,
+          pendingTool: this.state.pendingTool,
+          changed: currentTool !== this.state.pendingTool
+        });
+
+        // Get current selected label from controls
+        let effectiveLabel = null;
+        const annotation = item?.annotation;
+
+        // Check for currently selected labels across all label controls with better safety
+        if (annotation && isAlive(annotation)) {
+          try {
+            // Additional check to make sure annotation is still valid
+            if (annotation.root && isAlive(annotation.root) && Array.isArray(annotation.root.children)) {
+              for (const control of annotation.root.children) {
+                if (control && isAlive(control) && control?.type?.includes('labels')) {
+                  // Double-check children array is still valid
+                  if (Array.isArray(control.children)) {
+                    const selectedLabels = control.children.filter(label =>
+                      label && isAlive(label) && label.selected
+                    );
+                    if (selectedLabels.length > 0 && selectedLabels[0]?.value) {
+                      effectiveLabel = selectedLabels[0].value;
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          } catch (annotationError) {
+            console.log("[CustomMenu] Error accessing annotation for label sync:", annotationError);
+          }
+        }
+
+        console.log("[CustomMenu] Direct label sync:", {
+          effectiveLabel,
+          pendingLabel: this.state.pendingLabel,
+          changed: effectiveLabel !== this.state.pendingLabel
+        });
+
+        // Update state only if there's a real change
+        const toolChanged = effectiveTool !== this.state.pendingTool;
+        const labelChanged = effectiveLabel !== this.state.pendingLabel;
+
+        if (this._isMounted && (toolChanged || labelChanged)) {
+          console.log("[CustomMenu] Syncing from Label Studio:", {
+            effectiveTool,
+            effectiveLabel,
+            previous: { tool: this.state.pendingTool, label: this.state.pendingLabel },
+            source: 'tool-manager'
+          });
+
+          // Use try-catch around setState in case of MobX errors
+          try {
+            this.setState({
+              pendingTool: effectiveTool,
+              pendingLabel: effectiveLabel,
+            });
+          } catch (setStateError) {
+            console.log("[CustomMenu] Error updating state during sync:", setStateError);
+          }
+        }
+      } catch (error) {
+        // Catch any TimeTraveller or MobX State Tree errors
+        if (error.message && error.message.includes('TimeTraveller')) {
+          console.log("[CustomMenu] TimeTraveller error in syncWithLabelStudio - objects may have been detached:", error);
+        } else {
+          console.log("[CustomMenu] Error in syncWithLabelStudio:", error);
+        }
+
+        // Don't propagate the error to avoid breaking the app
+        return;
+      }
+    };
+
+    // Find control by tool type
+    findControlByToolType = (toolType) => {
+      const { item } = this.props;
+
+      if (!item || !isAlive(item)) return null;
+
+      const annotation = item?.annotation;
+      if (!annotation || !isAlive(annotation) || !annotation?.root?.children) return null;
+
+      const typeMapping = {
+        'Brush': 'brushlabels',
+        'Rectangle': 'rectanglelabels',
+        'Keypoint': 'keypointlabels',
+        'Eraser': 'eraser'
+      };
+
+      const targetType = typeMapping[toolType];
+      if (!targetType) return null;
+
+      return annotation.root.children.find(control =>
+        control && isAlive(control) && control?.type?.includes(targetType)
+      );
+    };
+
+    // Find tool by control type
+    findToolByControlType = (controlType) => {
+      const { item } = this.props;
+
+      if (!item || !isAlive(item)) return null;
+
+      const toolsManager = item.getToolsManager();
+      if (!toolsManager) return null;
+
+      const tools = toolsManager.allTools();
+
+      console.log(`[CustomMenu] Looking for tool for control type: ${controlType}`);
+      console.log(`[CustomMenu] Available tools:`, tools.map(t => ({ name: t.fullName, selected: t.selected })));
+
+      const typeMapping = {
+        'brushlabels': 'brush',
+        'rectanglelabels': 'Rectangle',
+        'keypointlabels': 'KeyPoint',
+        'eraser': 'eraser'
+      };
+
+      for (const [key, value] of Object.entries(typeMapping)) {
+        if (controlType.includes(key)) {
+          const foundTool = tools.find(tool =>
+            tool.fullName?.toLowerCase().includes(value.toLowerCase())
+          );
+          console.log(`[CustomMenu] Mapping ${key} -> ${value}, found tool:`, foundTool?.fullName);
+          return foundTool;
+        }
+      }
+      console.log(`[CustomMenu] No tool found for control type: ${controlType}`);
+      return null;
+    };
+
+    // COMPLETE override - directly control Label Studio without conflicts
+    applyToolLabelCombination = (toolName, labelValue) => {
+      const { item } = this.props;
+
+      // Check if component and objects are still alive
+      if (!this._isMounted || !item || !isAlive(item)) {
+        console.log(`[CustomMenu] Component unmounted or item not alive, skipping apply`);
+        return;
+      }
+
+      console.log(`[CustomMenu] DIRECT application: ${toolName} + ${labelValue}`);
+
+      try {
+        // Set tool switching flag to prevent race conditions
+        const imageObject = item.annotation?.names?.get(item.getToolsManager()?.name);
+        if (imageObject) {
+          imageObject._toolSwitchingInProgress = true;
+          // Clear the flag after a short delay
+          setTimeout(() => {
+            if (imageObject) {
+              imageObject._toolSwitchingInProgress = false;
+            }
+          }, 100);
+        }
+
+        // DIRECT approach: Set selections immediately without native system interference
+        const success = this.setDirectSelection(toolName, labelValue);
+
+        if (success) {
+          console.log(`[CustomMenu] Direct selection successful: ${toolName} + ${labelValue}`);
+        } else {
+          console.log(`[CustomMenu] Direct selection failed, falling back to tool-first approach`);
+          this.fallbackApproach(toolName, labelValue);
+        }
+
+      } catch (error) {
+        console.log(`[CustomMenu] Error in direct application:`, error);
+      }
+    };
+
+    // Set selections directly without going through native UI
+    setDirectSelection = (toolName, labelValue) => {
+      try {
+        const { item } = this.props;
+
+        // Safety check: Don't proceed if component is unmounted or item is not alive
+        if (!this._isMounted || !item || !isAlive(item)) {
+          console.log(`[CustomMenu] Component unmounted or item not alive, skipping direct selection`);
+          return false;
+        }
+
+        // Special handling for Eraser tool - it doesn't need labels
+        if (toolName === 'Eraser') {
+          console.log(`[CustomMenu] Eraser tool selected, activating without label selection`);
+          return this.activateEraserTool();
+        }
+
+        // Safety check: Don't proceed with invalid labels
+        if (!labelValue) {
+          console.log(`[CustomMenu] No label value provided, activating tool only`);
+          return this.activateToolOnly(toolName);
+        }
+
+        // Step 1: Get current tool and explicitly call handleToolSwitch if it exists
+        const toolsManager = item.getToolsManager();
+        if (!toolsManager) {
+          console.log(`[CustomMenu] ToolsManager not available`);
+          return false;
+        }
+
+        const currentTool = toolsManager.findSelectedTool();
+        const newTool = this.findToolByControlType(this.mapToolNameToControlType(toolName));
+
+        if (!newTool) {
+          return false;
+        }
+
+        // CRITICAL: Manually trigger handleToolSwitch if current tool has it
+        if (currentTool && currentTool !== newTool && currentTool.handleToolSwitch) {
+          console.log(`[CustomMenu] Manually calling handleToolSwitch on current tool: ${currentTool.fullName}`);
+          currentTool.handleToolSwitch(newTool);
+        }
+
+        // Step 2: Directly activate the new tool through the tools manager
+        toolsManager.selectTool(newTool, true);
+        console.log(`[CustomMenu] Direct tool activation: ${newTool.fullName}`);
+
+        // Step 3: Find the control that matches this tool
+        const control = this.findControlByToolType(toolName);
+        if (!control || !isAlive(control)) {
+          console.log(`[CustomMenu] No valid control found for ${toolName}, tool-only mode`);
+          return true; // Tool activation succeeded, label selection not possible
+        }
+
+        // Additional safety check for control children
+        if (!control.children || !Array.isArray(control.children)) {
+          console.log(`[CustomMenu] Control has no valid children array for ${toolName}`);
+          return true; // Tool activation succeeded, label selection not possible
+        }
+
+        // Step 4: Find and validate the label
+        const labelObj = control.children.find(label =>
+          label && isAlive(label) && label.value === labelValue
+        );
+
+        if (!labelObj || !isAlive(labelObj)) {
+          console.log(`[CustomMenu] Label ${labelValue} not found in control, tool-only mode`);
+          return true; // Tool activation succeeded, label selection not possible
+        }
+
+        // Step 5: Safely set label selection with additional checks
+        try {
+          // Double-check that control is still alive before proceeding
+          if (!isAlive(control)) {
+            console.log(`[CustomMenu] Control became invalid during selection process`);
+            return true;
+          }
+
+          // Clear all other selections in this control first
+          control.children.forEach(label => {
+            if (label && isAlive(label) && label !== labelObj && label.selected) {
+              // Additional safety check before calling setSelected
+              if (label.setSelected && typeof label.setSelected === 'function') {
+                try {
+                  label.setSelected(false);
+                } catch (err) {
+                  console.log(`[CustomMenu] Error deselecting label:`, err);
+                }
+              }
+            }
+          });
+
+          // Set our label as selected with additional safety checks
+          if (labelObj && isAlive(labelObj) && labelObj.setSelected && typeof labelObj.setSelected === 'function') {
+            try {
+              labelObj.setSelected(true);
+              console.log(`[CustomMenu] Direct label selection: ${labelValue}`);
+              return true;
+            } catch (err) {
+              console.log(`[CustomMenu] Error selecting label:`, err);
+              return true; // Tool activation still succeeded
+            }
+          }
+        } catch (selectionError) {
+          console.log(`[CustomMenu] Error in label selection process:`, selectionError);
+          return true; // Tool activation still succeeded
+        }
+
+        return true;
+      } catch (error) {
+        console.log(`[CustomMenu] Error in direct selection:`, error);
+        return false;
+      }
+    };
+
+    // Fallback approach if direct selection fails
+    fallbackApproach = (toolName, labelValue) => {
+      try {
+        const { item } = this.props;
+        const toolsManager = item.getToolsManager();
+        if (!toolsManager) return;
+
+        const currentTool = toolsManager.findSelectedTool();
+        const newTool = this.findToolByControlType(this.mapToolNameToControlType(toolName));
+
+        if (newTool) {
+          // CRITICAL: Manually trigger handleToolSwitch if current tool has it
+          if (currentTool && currentTool !== newTool && currentTool.handleToolSwitch) {
+            console.log(`[CustomMenu] Manually calling handleToolSwitch on current tool (fallback): ${currentTool.fullName}`);
+            currentTool.handleToolSwitch(newTool);
+          }
+
+          toolsManager.selectTool(newTool, true);
+          setTimeout(() => {
+            this.selectLabelAfterToolActivation(toolName, labelValue);
+          }, 100);
+        }
+      } catch (error) {
+        console.log(`[CustomMenu] Error in fallback approach:`, error);
+      }
+    };
+
+    // Helper to map our tool names to control types
+    mapToolNameToControlType = (toolName) => {
+      const mapping = {
+        'Brush': 'brushlabels',
+        'Rectangle': 'rectanglelabels',
+        'Keypoint': 'keypointlabels',
+        'Eraser': 'eraser'
+      };
+      return mapping[toolName] || toolName.toLowerCase() + 'labels';
+    };
+
+    // Select label after tool is activated
+    selectLabelAfterToolActivation = (toolName, labelValue) => {
+      try {
+        const { item } = this.props;
+        if (!item || !isAlive(item)) return;
+
+        // Find the control for this tool type
+        const control = this.findControlByToolType(toolName);
+        if (!control || !isAlive(control)) {
+          console.log(`[CustomMenu] Control not found after tool activation: ${toolName}`);
+          return;
+        }
+
+        // Find and select the label WITHOUT deselecting others initially
+        const labelObj = control.children.find(label =>
+          label && isAlive(label) && label.value === labelValue
+        );
+
+        if (!labelObj || !isAlive(labelObj)) {
+          console.log(`[CustomMenu] Label ${labelValue} not found in control after tool activation`);
+          return;
+        }
+
+        // Only select if not already selected to avoid deselection
+        if (!labelObj.selected) {
+          if (labelObj.setSelected && typeof labelObj.setSelected === 'function') {
+            console.log(`[CustomMenu] Selecting label via setSelected: ${labelValue}`);
+            labelObj.setSelected(true);
+          } else if (labelObj.onClickEv && typeof labelObj.onClickEv === 'function') {
+            console.log(`[CustomMenu] Selecting label via onClickEv: ${labelValue}`);
+            labelObj.onClickEv();
+          } else {
+            console.log(`[CustomMenu] No suitable selection method found for label: ${labelValue}`);
+          }
+        } else {
+          console.log(`[CustomMenu] Label ${labelValue} already selected, keeping it selected`);
+        }
+
+        console.log(`[CustomMenu] Successfully applied ${toolName} + ${labelValue}`);
+
+      } catch (error) {
+        console.log(`[CustomMenu] Error in selectLabelAfterToolActivation:`, error);
+      }
+    };
+
+    // Handle label selection
+    handleLabelClick = (labelValue) => {
+      console.log(`[CustomMenu] Label clicked: ${labelValue}`);
+      this.lastMenuInteraction = Date.now();
+
+      // If we already have a tool selected, apply immediately
+      if (this.state.pendingTool) {
+        this.setState({ pendingLabel: labelValue }, () => {
+          this.applyToolLabelCombination(this.state.pendingTool, labelValue);
+          // Salva le preferenze
+          this.savePreferences(this.state.pendingTool, labelValue);
+
+          // Auto-activate SAM if Keypoint tool is selected
+          if (this.state.pendingTool === 'Keypoint') {
+            setTimeout(async () => {
+              if (this._isMounted && this.state.pendingTool === 'Keypoint') {
+                console.log("[CustomMenu] Auto-activating SAM for Keypoint tool (via label click)...");
+                await this.activateSamForKeypoints();
+              }
+            }, 200);
+          }
+        });
+      } else {
+        // Just set the pending label and wait for tool selection
+        this.setState({ pendingLabel: labelValue }, () => {
+          // Salva almeno la label
+          this.savePreferences(this.state.pendingTool, labelValue);
+        });
+      }
+    };
+
+    // Handle tool selection - preserve existing label selection
+    handleToolClick = (toolName) => {
+      console.log(`[CustomMenu] Tool clicked: ${toolName}`);
+      this.lastMenuInteraction = Date.now();
+
+      // Keep the current label selection when switching tools
+      const currentLabel = this.state.pendingLabel;
+
+      this.setState({ pendingTool: toolName }, () => {
+        // If we have a label selected, apply the combination
+        if (currentLabel) {
+          this.applyToolLabelCombination(toolName, currentLabel);
+          // Salva le preferenze complete
+          this.savePreferences(toolName, currentLabel);
+        } else {
+          // Just activate the tool without changing label selection
+          this.activateToolOnly(toolName);
+          // Salva almeno il tool
+          this.savePreferences(toolName, this.state.pendingLabel);
+        }
+
+        // Auto-activate SAM for Keypoint tool
+        if (toolName === 'Keypoint') {
+          setTimeout(async () => {
+            if (this._isMounted && this.state.pendingTool === 'Keypoint') {
+              console.log("[CustomMenu] Auto-activating SAM for Keypoint tool (via click)...");
+              await this.activateSamForKeypoints();
+            }
+          }, 200);
+        }
+      });
+    };
+
+    // Activate tool only without affecting label selection
+    activateToolOnly = (toolName) => {
+      const { item } = this.props;
+      if (!item || !isAlive(item)) return;
+
+      try {
+        // Special handling for Eraser tool
+        if (toolName === 'Eraser') {
+          return this.activateEraserTool();
+        }
+
+        const toolsManager = item.getToolsManager();
+        if (!toolsManager) return;
+
+        const currentTool = toolsManager.findSelectedTool();
+        const newTool = this.findToolByControlType(this.mapToolNameToControlType(toolName));
+
+        if (!newTool) return;
+
+        // CRITICAL: Manually trigger handleToolSwitch if current tool has it
+        if (currentTool && currentTool !== newTool && currentTool.handleToolSwitch) {
+          console.log(`[CustomMenu] Manually calling handleToolSwitch on current tool (tool-only): ${currentTool.fullName}`);
+          currentTool.handleToolSwitch(newTool);
+        }
+
+        console.log(`[CustomMenu] Activating tool only: ${newTool.fullName}`);
+        toolsManager.selectTool(newTool, true);
+      } catch (error) {
+        console.log(`[CustomMenu] Error in activateToolOnly:`, error);
+      }
+    };
+
+    // Special activation for Eraser tool
+    activateEraserTool = () => {
+      const { item } = this.props;
+      if (!item || !isAlive(item)) return;
+
+      try {
+        const toolsManager = item.getToolsManager();
+        if (!toolsManager) return;
+
+        // Find the eraser tool directly
+        const eraserTool = toolsManager.allTools().find(tool =>
+          tool.fullName?.toLowerCase().includes('eraser')
+        );
+
+        if (!eraserTool) {
+          console.log("[CustomMenu] Eraser tool not found");
+          return;
+        }
+
+        const currentTool = toolsManager.findSelectedTool();
+
+        // CRITICAL: Manually trigger handleToolSwitch if current tool has it
+        if (currentTool && currentTool !== eraserTool && currentTool.handleToolSwitch) {
+          console.log(`[CustomMenu] Manually calling handleToolSwitch on current tool (eraser): ${currentTool.fullName}`);
+          currentTool.handleToolSwitch(eraserTool);
+        }
+
+        console.log(`[CustomMenu] Activating eraser tool: ${eraserTool.fullName}`);
+        toolsManager.selectTool(eraserTool, true);
+      } catch (error) {
+        console.log(`[CustomMenu] Error in activateEraserTool:`, error);
+      }
+    };
+
+    // Custom hotkey handlers that route through our menu system
+    handleBrushHotkey = () => {
+      console.log("[CustomMenu] B pressed - selecting Brush tool");
+      console.log("[CustomMenu] Current state:", { pendingLabel: this.state.pendingLabel, pendingTool: this.state.pendingTool });
+      this.lastMenuInteraction = Date.now();
+      this.handleToolClick('Brush');
+    };
+
+    handleRectangleHotkey = () => {
+      console.log("[CustomMenu] R pressed - selecting Rectangle tool");
+      console.log("[CustomMenu] Current state:", { pendingLabel: this.state.pendingLabel, pendingTool: this.state.pendingTool });
+      this.lastMenuInteraction = Date.now();
+      this.handleToolClick('Rectangle');
+    };
+
+    handleKeypointHotkey = async () => {
+      console.log("[CustomMenu] K pressed - selecting Keypoint tool");
+      console.log("[CustomMenu] Current state:", { pendingLabel: this.state.pendingLabel, pendingTool: this.state.pendingTool });
+      this.lastMenuInteraction = Date.now();
+
+      // First activate the keypoint tool
+      this.handleToolClick('Keypoint');
+
+      // Then attempt to activate SAM after a short delay
+      setTimeout(async () => {
+        if (this._isMounted && this.state.pendingTool === 'Keypoint') {
+          console.log("[CustomMenu] Auto-activating SAM for Keypoint tool...");
+          await this.activateSamForKeypoints();
+        }
+      }, 200);
+    };
+
+    handleEraserHotkey = () => {
+      console.log("[CustomMenu] E pressed - selecting Eraser tool");
+      console.log("[CustomMenu] Current state:", { pendingLabel: this.state.pendingLabel, pendingTool: this.state.pendingTool });
+      this.lastMenuInteraction = Date.now();
+      this.handleToolClick('Eraser');
+    };
+
+    handleLabelNumberHotkey = (number) => {
+      console.log(`[CustomMenu] ${number} pressed - selecting label at index ${number - 1}`);
+      this.lastMenuInteraction = Date.now();
+      const availableLabels = this.getAvailableLabels();
+      const labelIndex = number - 1;
+
+      if (labelIndex < availableLabels.length) {
+        const labelValue = availableLabels[labelIndex];
+        console.log(`[CustomMenu] Selecting label: ${labelValue}`);
+        this.handleLabelClick(labelValue);
+        // Le preferenze vengono salvate già nel handleLabelClick
+      } else {
+        console.log(`[CustomMenu] No label available at index ${labelIndex}`);
+      }
+    };
+
+    // Handle ESC key to clear menu selections
+    handleEscapeKey = () => {
+      console.log("[CustomMenu] ESC pressed - clearing menu selections");
+      this.setState({
+        pendingLabel: null,
+        pendingTool: null,
+      }, () => {
+        // Salva lo stato "pulito"
+        this.savePreferences(null, null);
+      });
+    };
+
+    // Get available labels from all label controls
+    getAvailableLabels = () => {
+      try {
+        const { item } = this.props;
+
+        if (!item || !isAlive(item)) {
+          return ['Unknown'];
+        }
+
+        const annotation = item?.annotation;
+        const availableLabels = new Set();
+
+        if (annotation && isAlive(annotation) && annotation?.root?.children) {
+          annotation.root.children.forEach(control => {
+            try {
+              if (control && isAlive(control) && control?.type?.includes('labels') && Array.isArray(control.children)) {
+                control.children.forEach(label => {
+                  if (label && isAlive(label) && label?.value) {
+                    availableLabels.add(label.value);
+                  }
+                });
+              }
+            } catch (controlError) {
+              console.log("[CustomMenu] Error processing control in getAvailableLabels:", controlError);
+            }
+          });
+        }
+
+        // Add labels from existing regions with safety checks
+        if (annotation && isAlive(annotation) && annotation?.regionStore?.regions) {
+          try {
+            annotation.regionStore.regions.forEach(region => {
+              if (region && isAlive(region) && region?.labelings) {
+                region.labelings.forEach(labeling => {
+                  if (labeling && labeling?.selectedValues) {
+                    labeling.selectedValues.forEach(value => {
+                      if (value) availableLabels.add(value);
+                    });
+                  }
+                });
+              }
+            });
+          } catch (regionError) {
+            console.log("[CustomMenu] Error processing regions in getAvailableLabels:", regionError);
+          }
+        }
+
+        if (availableLabels.size === 0) availableLabels.add('Unknown');
+
+        return Array.from(availableLabels);
+      } catch (error) {
+        console.log("[CustomMenu] Error in getAvailableLabels:", error);
+        return ['Unknown'];
+      }
+    };
+
+    // Get label color
+    getLabelColor = (labelValue) => {
+      const { item } = this.props;
+      const annotation = item?.annotation;
+
+      if (annotation?.root?.children) {
+        for (const control of annotation.root.children) {
+          if (control?.type?.includes('labels') && Array.isArray(control.children)) {
+            const labelObj = control.children.find(l => l?.value === labelValue);
+            if (labelObj?.background) {
+              return labelObj.background;
+            }
+          }
+        }
+      }
+
+      return '#36B37E';
+    };
+
+    // Get currently selected tool name from native state
+    getNativeSelectedToolName = (selectedTool) => {
+      if (!selectedTool) return null;
+
+      const toolName = selectedTool.fullName?.toLowerCase() || '';
+      if (toolName.includes('eraser')) return 'Eraser';
+      else if (toolName.includes('brush')) return 'Brush';
+      else if (toolName.includes('rectangle')) return 'Rectangle';
+      else if (toolName.includes('keypoint') || toolName.includes('point')) return 'Keypoint';
+      return null;
+    };
+
+    // Get currently selected labels from native state
+    getNativeSelectedLabels = () => {
+      try {
+        const { item } = this.props;
+        const selectedLabels = [];
+
+        if (!item || !isAlive(item)) return selectedLabels;
+
+        const annotation = item?.annotation;
+        if (annotation && isAlive(annotation) && annotation?.root?.children) {
+          for (const control of annotation.root.children) {
+            try {
+              if (control && isAlive(control) && control?.type?.includes('labels') && Array.isArray(control.children)) {
+                const selected = control.children.filter(label =>
+                  label && isAlive(label) && label.selected
+                );
+                selectedLabels.push(...selected.map(l => l.value).filter(Boolean));
+              }
+            } catch (controlError) {
+              console.log("[CustomMenu] Error processing control in getNativeSelectedLabels:", controlError);
+            }
+          }
+        }
+
+        return selectedLabels;
+      } catch (error) {
+        console.log("[CustomMenu] Error getting native selected labels:", error);
+        return [];
+      }
+    };
+
+    // Get current brush size from the brush tool
+    getBrushSize = () => {
+      try {
+        const { item } = this.props;
+        if (!item || !isAlive(item)) return 15; // default size
+
+        const toolsManager = item.getToolsManager();
+        if (!toolsManager) return 15;
+
+        const brushTool = toolsManager.allTools().find(tool =>
+          tool && tool.fullName?.toLowerCase().includes('brush')
+        );
+
+        return brushTool?.strokeWidth || 15;
+      } catch (error) {
+        console.log("[CustomMenu] Error getting brush size:", error);
+        return 15;
+      }
+    };
+
+    // Set brush size on the brush tool
+    setBrushSize = (size) => {
+      try {
+        const { item } = this.props;
+        if (!item || !isAlive(item)) return;
+
+        const toolsManager = item.getToolsManager();
+        if (!toolsManager) return;
+
+        const brushTool = toolsManager.allTools().find(tool =>
+          tool && tool.fullName?.toLowerCase().includes('brush')
+        );
+
+        if (brushTool && brushTool.setStroke && typeof brushTool.setStroke === 'function') {
+          brushTool.setStroke(size);
+        }
+      } catch (error) {
+        console.log("[CustomMenu] Error setting brush size:", error);
+      }
+    };
+
+    // Get current eraser size from the eraser tool
+    getEraserSize = () => {
+      try {
+        const { item } = this.props;
+        if (!item || !isAlive(item)) return 10; // default size
+
+        const toolsManager = item.getToolsManager();
+        if (!toolsManager) return 10;
+
+        const eraserTool = toolsManager.allTools().find(tool =>
+          tool && tool.fullName?.toLowerCase().includes('eraser')
+        );
+
+        return eraserTool?.strokeWidth || 10;
+      } catch (error) {
+        console.log("[CustomMenu] Error getting eraser size:", error);
+        return 10;
+      }
+    };
+
+    // Set eraser size on the eraser tool
+    setEraserSize = (size) => {
+      try {
+        const { item } = this.props;
+        if (!item || !isAlive(item)) return;
+
+        const toolsManager = item.getToolsManager();
+        if (!toolsManager) return;
+
+        const eraserTool = toolsManager.allTools().find(tool =>
+          tool && tool.fullName?.toLowerCase().includes('eraser')
+        );
+
+        if (eraserTool && eraserTool.setStroke && typeof eraserTool.setStroke === 'function') {
+          eraserTool.setStroke(size);
+        }
+      } catch (error) {
+        console.log("[CustomMenu] Error setting eraser size:", error);
+      }
+    };
+
+    // Check if SAM tool is available and active
+    isSamToolAvailable = () => {
+      try {
+        const samSelectors = [
+          'button[aria-label="key-point-tool"].lsf-tool_smart',
+          'button.lsf-tool_smart[aria-label*="key-point"]',
+          'button.lsf-tool_smart[aria-label*="keypoint"]',
+          '.lsf-tool_smart:has([aria-label*="key-point"])',
+          'button[data-tool*="keypoint"].lsf-tool_smart',
+          '.lsf-tool.lsf-tool_smart[aria-label*="KeyPoint"]'
+        ];
+
+        for (const selector of samSelectors) {
+          const samTool = document.querySelector(selector);
+          if (samTool) {
+            return {
+              available: true,
+              element: samTool,
+              isActive: samTool.classList.contains('lsf-tool_active') ||
+                       samTool.getAttribute('aria-pressed') === 'true'
+            };
+          }
+        }
+
+        return { available: false, element: null, isActive: false };
+      } catch (error) {
+        console.log("[CustomMenu] Error checking SAM availability:", error);
+        return { available: false, element: null, isActive: false };
+      }
+    };
+
+    // Activate SAM tool for keypoints
+    activateSamForKeypoints = () => {
+      return new Promise((resolve) => {
+        console.log("[CustomMenu] Attempting to activate SAM for keypoints...");
+
+        const samInfo = this.isSamToolAvailable();
+
+        if (!samInfo.available) {
+          console.log("[CustomMenu] SAM tool not available");
+          resolve(false);
+          return;
+        }
+
+        if (samInfo.isActive) {
+          console.log("[CustomMenu] SAM tool already active");
+          resolve(true);
+          return;
+        }
+
+        try {
+          console.log("[CustomMenu] Clicking SAM tool to activate...");
+          samInfo.element.click();
+
+          // Check activation after a short delay
+          setTimeout(() => {
+            const updatedSamInfo = this.isSamToolAvailable();
+            const isNowActive = updatedSamInfo.available && updatedSamInfo.isActive;
+
+            console.log(isNowActive ?
+              "[CustomMenu] ✅ SAM activated successfully!" :
+              "[CustomMenu] ❌ SAM activation failed"
+            );
+
+            resolve(isNowActive);
+          }, 150);
+
+        } catch (error) {
+          console.log("[CustomMenu] Error activating SAM:", error);
+          resolve(false);
+        }
+      });
+    };
+
+    render() {
+      // Early safety check to prevent rendering issues
+      if (!this._isMounted) {
+        return null;
+      }
+
+      const { item } = this.props;
+
+      // Safety checks for render method
+      if (!item || !isAlive(item)) {
+        return <div style={{ padding: '16px', color: '#666' }}>Loading...</div>;
+      }
+
+      let toolsManager, selectedTool, availableLabels, nativeToolName, nativeSelectedLabels;
+
+      try {
+        toolsManager = item.getToolsManager();
+        selectedTool = toolsManager?.findSelectedTool();
+        availableLabels = this.getAvailableLabels();
+
+        // Get real-time native state for better accuracy
+        nativeToolName = this.getNativeSelectedToolName(selectedTool);
+        nativeSelectedLabels = this.getNativeSelectedLabels();
+      } catch (renderError) {
+        console.log("[CustomMenu] Error during render data gathering:", renderError);
+        return <div style={{ padding: '16px', color: '#ff6b6b' }}>Menu temporarily unavailable</div>;
+      }
+
+      // Additional safety checks
+      if (!Array.isArray(availableLabels)) {
+        availableLabels = [];
+      }
+      if (!Array.isArray(nativeSelectedLabels)) {
+        nativeSelectedLabels = [];
+      }
+
+      return (
+        <div
+          style={{
+            width: "280px",
+            backgroundColor: '#f8f9fa',
+            border: '1px solid #ccc',
+            borderRadius: '8px',
+            padding: '16px',
+            fontFamily: 'sans-serif',
+            overflow: 'auto',
+            height: 'fit-content',
+            position: 'relative',
+            zIndex: 1000,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            marginTop: '8px',
+            pointerEvents: 'auto',
+            userSelect: 'none'
+          }}
+        >
+          {/* Sezione Label Disponibili */}
+          <div style={{ marginBottom: '20px' }}>
+            <div
+              style={{
+                fontSize: '12px',
+                fontWeight: 'bold',
+                marginBottom: '8px',
+                color: '#666',
+                textTransform: 'uppercase'
+              }}
+            >
+              Label Disponibili
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '4px' }}>
+              {availableLabels.map((labelValue, index) => {
+                // Check both our internal state and native state for better accuracy
+                const isSelectedByMenu = this.state.pendingLabel === labelValue;
+                const isSelectedNatively = nativeSelectedLabels.includes(labelValue);
+                const isSelected = isSelectedByMenu || isSelectedNatively;
+
+                const labelHotkey = index < 9 ? `${index + 1}` : '';
+                const labelColor = this.getLabelColor(labelValue);
+
+                return (
+                  <span
+                    key={labelValue}
+                    className={`lsf-label ${isSelected ? 'lsf-label_selected' : ''} lsf-label_clickable lsf-label_margins`}
+                    style={{
+                      '--color': isSelected ? labelColor : '#666',
+                      '--background': isSelected ? `${labelColor}26` : '#f5f5f5',
+                      cursor: 'pointer',
+                      display: 'inline-block',
+                      minWidth: 'auto',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      marginBottom: '0',
+                      marginRight: '4px',
+                      textAlign: 'center',
+                      borderRadius: '4px',
+                      whiteSpace: 'nowrap',
+                      borderLeft: isSelected ? `4px solid ${labelColor}` : '4px solid transparent'
+                    }}
+                    onClick={() => this.handleLabelClick(labelValue)}
+                  >
+                    <span className="lsf-label__text">{labelValue}</span>
+                    {labelHotkey && <span className="lsf-label__hotkey">{labelHotkey}</span>}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Sezione Tool Disponibili */}
+          <div style={{ marginBottom: '20px' }}>
+            <div
+              style={{
+                fontSize: '12px',
+                fontWeight: 'bold',
+                marginBottom: '8px',
+                color: '#666',
+                textTransform: 'uppercase'
+              }}
+            >
+              Tool Disponibili
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {/* Prima riga: Brush e Eraser affiancati */}
+              <div style={{ display: 'flex', flexDirection: 'row', gap: '4px' }}>
+                {[
+                  { name: 'Brush', type: 'brushlabels', icon: '🖌️' },
+                  { name: 'Eraser', type: 'eraser', icon: '🧽' }
+                ].map((tool, index) => {
+                  // Check both our internal state and native state for better accuracy
+                  const isSelectedByMenu = this.state.pendingTool === tool.name;
+                  const isSelectedNatively = nativeToolName === tool.name;
+                  const isSelected = isSelectedByMenu || isSelectedNatively;
+
+                  const toolHotkey = ['B', 'E'][index];
+
+                  return (
+                    <span
+                      key={tool.name}
+                      className={`lsf-label ${isSelected ? 'lsf-label_selected' : ''} lsf-label_clickable lsf-label_margins`}
+                      style={{
+                        '--color': isSelected ? '#52c41a' : '#666',
+                        '--background': isSelected ? '#52c41a26' : '#f5f5f5',
+                        cursor: 'pointer',
+                        display: 'block',
+                        flex: '1', // Prendi lo spazio disponibile
+                        textAlign: 'center',
+                        marginBottom: '0'
+                      }}
+                      onClick={() => this.handleToolClick(tool.name)}
+                    >
+                      <span className="lsf-label__text">
+                        {tool.icon} {tool.name}
+                      </span>
+                      <span className="lsf-label__hotkey">{toolHotkey}</span>
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* Seconda riga: Rectangle e Keypoint */}
+              {[
+                { name: 'Rectangle', type: 'rectanglelabels', icon: '⬛' },
+                { name: 'Keypoint', type: 'keypointlabels', icon: '🎯' }
+              ].map((tool, index) => {
+                // Check both our internal state and native state for better accuracy
+                const isSelectedByMenu = this.state.pendingTool === tool.name;
+                const isSelectedNatively = nativeToolName === tool.name;
+                const isSelected = isSelectedByMenu || isSelectedNatively;
+
+                const toolHotkey = ['R', 'K'][index];
+
+                return (
+                  <span
+                    key={tool.name}
+                    className={`lsf-label ${isSelected ? 'lsf-label_selected' : ''} lsf-label_clickable lsf-label_margins`}
+                    style={{
+                      '--color': isSelected ? '#52c41a' : '#666',
+                      '--background': isSelected ? '#52c41a26' : '#f5f5f5',
+                      cursor: 'pointer',
+                      display: 'block',
+                      marginBottom: '4px'
+                    }}
+                    onClick={() => this.handleToolClick(tool.name)}
+                  >
+                    <span className="lsf-label__text">
+                      {tool.icon} {tool.name}
+                      {tool.name === 'Keypoint' && isSelected && (
+                        <span
+                          style={{
+                            backgroundColor: selectedTool?.fullName?.includes('-dynamic') ? '#52c41a' : '#ff8c00',
+                            color: 'white',
+                            padding: '2px 4px',
+                            borderRadius: '2px',
+                            fontSize: '9px',
+                            fontWeight: 'bold',
+                            marginLeft: '4px'
+                          }}
+                        >
+                          {selectedTool?.fullName?.includes('-dynamic') ? 'SAM ✓' : 'SAM'}
+                        </span>
+                      )}
+                    </span>
+                    <span className="lsf-label__hotkey">{toolHotkey}</span>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Brush Size Control - visibile solo quando è selezionato il brush tool */}
+          {(nativeToolName === 'Brush' || this.state.pendingTool === 'Brush') && (
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>Brush Size</div>
+              <Range
+                value={this.getBrushSize()}
+                min={1}
+                max={50}
+                align="horizontal"
+                minIcon={<IconDot size={8} />}
+                maxIcon={<IconDot size={16} />}
+                onChange={(value) => this.setBrushSize(value)}
+              />
+            </div>
+          )}
+
+          {/* Eraser Size Control - visibile solo quando è selezionato l'eraser tool */}
+          {(nativeToolName === 'Eraser' || this.state.pendingTool === 'Eraser') && (
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>Eraser Size</div>
+              <Range
+                value={this.getEraserSize()}
+                min={1}
+                max={50}
+                align="horizontal"
+                minIcon={<IconDot size={8} />}
+                maxIcon={<IconDot size={16} />}
+                onChange={(value) => this.setEraserSize(value)}
+              />
+            </div>
+          )}
+
+        </div>
+      );
+    }
+  }
+);

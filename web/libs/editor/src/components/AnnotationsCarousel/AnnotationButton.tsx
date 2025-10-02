@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { inject, observer } from "mobx-react";
+import { isAlive } from "mobx-state-tree";
 import { useCopyText } from "@humansignal/core/lib/hooks/useCopyText";
 import { isDefined, userDisplayName } from "@humansignal/core/lib/utils/helpers";
 import { Block, cn, Elem } from "../../utils/bem";
@@ -19,9 +20,6 @@ import {
 import { Tooltip, Userpic, ToastType, useToast } from "@humansignal/ui";
 import { TimeAgo } from "../../common/TimeAgo/TimeAgo";
 import { useDropdown } from "../../common/Dropdown/DropdownTrigger";
-
-// eslint-disable-next-line
-// @ts-ignore
 import { confirm } from "../../common/Modal/Modal";
 import { type ContextMenuAction, ContextMenu, ContextMenuTrigger, type MenuActionOnClick } from "../ContextMenu";
 import "./AnnotationButton.scss";
@@ -34,25 +32,37 @@ interface AnnotationButtonInterface {
   onAnnotationChange?: () => void;
 }
 
+const safe = (fn: () => any, fallback = null) => {
+  try {
+    return fn();
+  } catch (err) {
+    if (err?.message?.includes("no longer part of a state tree")) {
+      console.warn("[AnnotationButton] Accesso a nodo MST distrutto bloccato.");
+      return fallback;
+    }
+    throw err;
+  }
+};
+
 const renderCommentIcon = (ent: any) => {
+  if (!isAlive(ent)) return null;
   if (ent.unresolved_comment_count > 0) {
     return IconCommentUnresolved;
   }
   if (ent.comment_count > 0) {
     return IconCommentResolved;
   }
-
   return null;
 };
 
 const renderCommentTooltip = (ent: any) => {
+  if (!isAlive(ent)) return "";
   if (ent.unresolved_comment_count > 0) {
     return "Unresolved Comments";
   }
   if (ent.comment_count > 0) {
     return "All Comments Resolved";
   }
-
   return "";
 };
 
@@ -64,33 +74,35 @@ const injector = inject(({ store }) => {
 
 export const AnnotationButton = observer(
   ({ entity, capabilities, annotationStore, onAnnotationChange }: AnnotationButtonInterface) => {
+    if (!isAlive(entity)) return null;
+
     const iconSize = 32;
-    const isPrediction = entity.type === "prediction";
+    const isPrediction = safe(() => entity.type === "prediction", false);
     const username = userDisplayName(
-      entity.user ?? {
-        firstName: entity.createdBy || "Admin",
+      safe(() => entity.user) ?? {
+        firstName: safe(() => entity.createdBy) || "Admin",
       },
     );
     const [isGroundTruth, setIsGroundTruth] = useState<boolean>();
-    const infoIsHidden = annotationStore.store?.hasInterface("annotations:hide-info");
+    const infoIsHidden = safe(() => annotationStore.store?.hasInterface("annotations:hide-info"), false);
     let hiddenUser = null;
 
     if (infoIsHidden) {
-      // this data can be missing in tests, but we don't have `infoIsHidden` there, so hiding logic like this
-      const currentUser = annotationStore.store.user;
-      const isCurrentUser = entity.user?.id === currentUser.id || entity.createdBy === currentUser.email;
+      const currentUser = safe(() => annotationStore.store.user);
+      const isCurrentUser = safe(() => entity.user?.id === currentUser?.id || entity.createdBy === currentUser?.email, false);
       hiddenUser = { email: isCurrentUser ? "Me" : "User" };
     }
 
     const CommentIcon = renderCommentIcon(entity);
-    // need to find a more reliable way to grab this value
-    // const historyActionType = annotationStore.history.toJSON()?.[0]?.actionType;
 
     useEffect(() => {
-      setIsGroundTruth(entity.ground_truth);
-    }, [entity, entity.ground_truth]);
+      if (isAlive(entity)) {
+        setIsGroundTruth(entity.ground_truth);
+      }
+    }, [entity]);
 
     const clickHandler = useCallback(() => {
+      if (!isAlive(entity)) return;
       const { selected, id, type } = entity;
 
       if (!selected) {
@@ -100,39 +112,46 @@ export const AnnotationButton = observer(
           annotationStore.selectAnnotation(id);
         }
       }
-    }, [entity]);
+    }, [entity, annotationStore]);
 
     const AnnotationButtonContextMenu = injector(
       observer(({ entity, capabilities, store }: AnnotationButtonInterface) => {
+        if (!isAlive(entity)) return null;
+
         const annotationLink = useMemo(() => {
           const url = new URL(window.location.href);
-          if (entity.pk) {
-            url.searchParams.set("annotation", entity.pk);
+          const pk = safe(() => entity.pk);
+          if (pk) {
+            url.searchParams.set("annotation", pk);
           }
-          // In case of targeting directly an annotation, we don't want to show the region in the URL
-          // otherwise it will be shown as a region link
           url.searchParams.delete("region");
           return url.toString();
-        }, [entity.pk]);
+        }, [entity]);
+
         const [copyLink] = useCopyText(annotationLink);
         const toast = useToast();
         const dropdown = useDropdown();
+
         const clickHandler = () => {
           onAnnotationChange?.();
           dropdown?.close();
         };
-        const setGroundTruth = useCallback<MenuActionOnClick>(() => {
-          entity.setGroundTruth(!isGroundTruth);
-          clickHandler();
-        }, [entity]);
-        const duplicateAnnotation = useCallback<MenuActionOnClick>(() => {
-          const c = annotationStore.addAnnotationFromPrediction(entity);
 
-          window.setTimeout(() => {
-            annotationStore.selectAnnotation(c.id);
-            clickHandler();
-          });
-        }, [entity]);
+        const setGroundTruth = useCallback<MenuActionOnClick>(() => {
+          safe(() => entity.setGroundTruth(!isGroundTruth));
+          clickHandler();
+        }, [entity, isGroundTruth]);
+
+        const duplicateAnnotation = useCallback<MenuActionOnClick>(() => {
+          const c = safe(() => annotationStore.addAnnotationFromPrediction(entity));
+          if (c) {
+            window.setTimeout(() => {
+              safe(() => annotationStore.selectAnnotation(c.id));
+              clickHandler();
+            });
+          }
+        }, [entity, annotationStore]);
+
         const linkAnnotation = useCallback<MenuActionOnClick>(() => {
           copyLink();
           dropdown?.close();
@@ -140,7 +159,8 @@ export const AnnotationButton = observer(
             message: "Annotation link copied to clipboard",
             type: ToastType.info,
           });
-        }, [entity, copyLink]);
+        }, [copyLink]);
+
         const deleteAnnotation = useCallback(() => {
           clickHandler();
           confirm({
@@ -155,14 +175,16 @@ export const AnnotationButton = observer(
             buttonLook: "destructive",
             okText: "Delete",
             onOk: () => {
-              entity.list.deleteAnnotation(entity);
+              safe(() => entity.list.deleteAnnotation(entity));
             },
           });
         }, [entity]);
-        const isPrediction = entity.type === "prediction";
-        const isDraft = !isDefined(entity.pk);
-        const showGroundTruth = capabilities.groundTruthEnabled && !isPrediction && !isDraft;
-        const showDuplicateAnnotation = capabilities.enableCreateAnnotation && !isDraft;
+
+        const isPrediction = safe(() => entity.type === "prediction", false);
+        const isDraft = !safe(() => entity.pk);
+        const showGroundTruth = safe(() => capabilities.groundTruthEnabled && !isPrediction && !isDraft, false);
+        const showDuplicateAnnotation = safe(() => capabilities.enableCreateAnnotation && !isDraft, false);
+
         const actions = useMemo<ContextMenuAction[]>(
           () => [
             {
@@ -185,7 +207,7 @@ export const AnnotationButton = observer(
               label: "Copy Annotation Link",
               onClick: linkAnnotation,
               icon: <IconLink />,
-              enabled: !isDraft && store.hasInterface("annotations:copy-link"),
+              enabled: !isDraft && safe(() => store.hasInterface("annotations:copy-link"), false),
             },
             {
               label: "Delete Annotation",
@@ -193,7 +215,7 @@ export const AnnotationButton = observer(
               icon: <IconTrashRect />,
               separator: true,
               danger: true,
-              enabled: capabilities.enableAnnotationDelete && !isPrediction,
+              enabled: safe(() => capabilities.enableAnnotationDelete && !isPrediction, false),
             },
           ],
           [
@@ -212,32 +234,20 @@ export const AnnotationButton = observer(
     );
 
     return (
-      <Block name="annotation-button" mod={{ selected: entity.selected }}>
+      <Block name="annotation-button" mod={{ selected: safe(() => entity.selected, false) }}>
         <Elem name="mainSection" onClick={clickHandler}>
           <Elem name="picSection">
             <Elem
               name="userpic"
               tag={Userpic}
               showUsername
-              username={isPrediction ? entity.createdBy : null}
-              user={hiddenUser ?? entity.user ?? { email: entity.createdBy }}
+              username={isPrediction ? safe(() => entity.createdBy) : null}
+              user={hiddenUser ?? safe(() => entity.user) ?? { email: safe(() => entity.createdBy) }}
               mod={{ prediction: isPrediction }}
               size={24}
             >
               {isPrediction && <IconSparks style={{ width: 18, height: 18 }} />}
             </Elem>
-            {/* to do: return these icons when we have a better way to grab the history action type */}
-            {/* {historyActionType === 'accepted' && <Elem name='status' mod={{ approved: true }}><IconCheckBold /></Elem>}
-          {historyActionType && (
-            <Elem name='status' mod={{ skipped: true }}>
-              <IconCrossBold />
-            </Elem>
-          )}
-          {entity.history.canUndo && (
-            <Elem name='status' mod={{ updated: true }}>
-              <IconCheckBold />
-            </Elem>
-          )} */}
           </Elem>
           <Elem name="main">
             <Elem name="user">
@@ -246,16 +256,16 @@ export const AnnotationButton = observer(
               </Elem>
               {!infoIsHidden && (
                 <Elem tag="span" name="entity-id">
-                  #{entity.pk ?? entity.id}
+                  #{safe(() => entity.pk ?? entity.id)}
                 </Elem>
               )}
             </Elem>
             {!infoIsHidden && (
               <Elem name="info">
-                <Elem name="date" component={TimeAgo} date={entity.createdDate} />
-                {isPrediction && isDefined(entity.score) && (
-                  <span title={`Prediction score = ${entity.score}`}>
-                    {" · "} {(entity.score * 100).toFixed(2)}%
+                <Elem name="date" component={TimeAgo} date={safe(() => entity.createdDate)} />
+                {isPrediction && isDefined(safe(() => entity.score)) && (
+                  <span title={`Prediction score = ${safe(() => entity.score)}`}>
+                    {" · "} {(safe(() => entity.score) * 100).toFixed(2)}%
                   </span>
                 )}
               </Elem>
@@ -263,14 +273,14 @@ export const AnnotationButton = observer(
           </Elem>
           {!isPrediction && (
             <Elem name="icons">
-              {entity.draftId > 0 && (
+              {safe(() => entity.draftId > 0) && (
                 <Tooltip title="Draft">
                   <Elem name="icon" mod={{ draft: true }}>
                     <IconDraftCreated2 color="#617ADA" />
                   </Elem>
                 </Tooltip>
               )}
-              {entity.skipped && (
+              {safe(() => entity.skipped) && (
                 <Tooltip title="Skipped">
                   <Elem name="icon" mod={{ skipped: true }}>
                     <IconAnnotationSkipped2 color="#DD0000" />

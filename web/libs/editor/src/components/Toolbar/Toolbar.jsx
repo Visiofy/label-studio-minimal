@@ -51,17 +51,51 @@ export const Toolbar = inject("store")(
               // Lista degli strumenti da nascondere con i nomi esatti dalla console
               const hiddenTools = [
                 'brushtool',
-                'keypointtool', 
+                'keypointtool',
                 'rectangletool',
-                'rectangle3pointtool'
-                // Note: 'point' non appare nella lista, probabilmente è KeyPointTool
+                'rectangle3pointtool',
+                'eraser',
+                'erasertool'
               ];
+
               const toolName = t.toolName?.toLowerCase() || '';
-              
-              // Mostra solo gli strumenti che NON sono nella lista dei nascosti
-              return t.viewClass && !hiddenTools.includes(toolName);
+              const toolDisplayName = t.fullName?.toLowerCase() || '';
+              const toolType = t.type?.toLowerCase() || '';
+              const toolClass = t.viewClass?.name?.toLowerCase() || '';
+
+              // FILTRO AGGRESSIVO - nascondi TUTTO quello che potrebbe essere smart
+              const isSmartTool = t.dynamic ||
+                                t.smart ||
+                                toolName.includes('smart') ||
+                                toolDisplayName.includes('smart') ||
+                                toolType.includes('smart') ||
+                                toolClass.includes('smart') ||
+                                toolName.includes('dynamic') ||
+                                toolDisplayName.includes('dynamic') ||
+                                toolName.includes('auto') ||
+                                toolDisplayName.includes('auto') ||
+                                toolDisplayName.includes('detect') ||
+                                toolName.includes('detect') ||
+                                toolName.includes('ai') ||
+                                toolDisplayName.includes('ai') ||
+                                // Controlla anche le proprietà dell'oggetto tool con controlli sicuri
+                                (t.controls && Array.isArray(t.controls) && t.controls.some(c => {
+                                  if (!c) return false;
+                                  const controlName = (c.name && typeof c.name === 'string') ? c.name.toLowerCase() : '';
+                                  const controlType = (c.type && typeof c.type === 'string') ? c.type.toLowerCase() : '';
+                                  return controlName.includes('smart') || controlType.includes('smart');
+                                })) ||
+                                // Controlla il nome della classe del componente con controlli sicuri
+                                (t.viewClass && t.viewClass.displayName &&
+                                 typeof t.viewClass.displayName === 'string' &&
+                                 t.viewClass.displayName.toLowerCase().includes('smart'));
+
+              // RETURN FALSE per nascondere, TRUE per mostrare
+              // Nascondi se è nella lista hidden O se è smart O se non ha viewClass
+              return t.viewClass && !hiddenTools.includes(toolName) && !isSmartTool;
             });
 
+            // Renderizza solo se ci sono tool visibili e NON smart
             return visibleTools.length ? (
               <Elem name="group" key={`toolset-${name}-${i}`}>
                 {visibleTools
@@ -74,8 +108,8 @@ export const Toolbar = inject("store")(
               </Elem>
             ) : null;
           })}
-          {/* Auto-detect riattivato */}
-          {store.autoAnnotation && <SmartTools tools={smartTools} />}
+          {/* Auto-detect DISABILITATO - nascondiamo tutti i smart tool */}
+          {false && store.autoAnnotation && <SmartTools tools={smartTools} />}
         </Block>
       </ToolbarProvider>
     );

@@ -1,5 +1,27 @@
 import { observer } from "mobx-react";
+import { isAlive } from "mobx-state-tree";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+
+const safeMobxAccess = (fn: () => any, fallback: any = null) => {
+  try {
+    return fn();
+  } catch (error: any) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX OutlinerPanel] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item: any) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
 import { Block, Elem } from "../../../utils/bem";
 import { PanelBase, type PanelProps } from "../PanelBase";
 import { OutlinerTree } from "./OutlinerTree";
@@ -21,16 +43,25 @@ OutlinerFFClasses.push("ff_hide_all_regions");
 
 const OutlinerPanelComponent: FC<OutlinerPanelProps> = ({ regions, ...props }) => {
   const [group, setGroup] = useState();
+
+  if (!regions || !isSafeToUse(regions)) {
+    return (
+      <Block name="outliner-panel">
+        <div>Regions not available</div>
+      </Block>
+    );
+  }
+
   const onOrderingChange = useCallback(
     (value) => {
-      regions.setSort(value);
+      safeMobxAccess(() => regions.setSort(value));
     },
     [regions],
   );
 
   const onGroupingChange = useCallback(
     (value) => {
-      regions.setGrouping(value);
+      safeMobxAccess(() => regions.setGrouping(value));
       setGroup(value);
     },
     [regions],
@@ -38,16 +69,17 @@ const OutlinerPanelComponent: FC<OutlinerPanelProps> = ({ regions, ...props }) =
 
   const onFilterChange = useCallback(
     (value) => {
-      regions.setFilteredRegions(value);
+      safeMobxAccess(() => regions.setFilteredRegions(value));
     },
     [regions],
   );
 
   useEffect(() => {
-    setGroup(regions.group);
+    const currentGroup = safeMobxAccess(() => regions.group);
+    setGroup(currentGroup);
   }, []);
 
-  regions.setGrouping(group);
+  safeMobxAccess(() => regions.setGrouping(group));
 
   return (
     <PanelBase {...props} name="outliner" mix={OutlinerFFClasses} title="Outliner">

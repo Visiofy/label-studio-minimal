@@ -318,7 +318,8 @@ const BrushLabelsModel = types.compose(
 );
 
 const HtxBrushLabels = observer(({ item }) => {
-  return <HtxLabels item={item} />;
+  // Hide native BrushLabels component - custom menu handles this
+  return null;
 });
 
 Registry.addTag("brushlabels", BrushLabelsModel, HtxBrushLabels);

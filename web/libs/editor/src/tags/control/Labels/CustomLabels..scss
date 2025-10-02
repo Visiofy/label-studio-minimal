@@ -1,0 +1,306 @@
+// Personalizzazione per i label di Label Studio
+// Rimuove i tool "Smart" e personalizza l'aspetto
+
+// NASCONDI COMPLETAMENTE TUTTI I TITOLI E HEADER DEI LABEL
+h1:global(.ant-typography),
+h2:global(.ant-typography),
+h3:global(.ant-typography),
+h4:global(.ant-typography),
+h5:global(.ant-typography),
+h6:global(.ant-typography) {
+  display: none !important;
+}
+
+// Nascondi anche eventuali header con contenuto label-related
+.ant-typography:has-text("Label"),
+.ant-typography:has-text("Brush"),
+.ant-typography:has-text("Rectangle"),
+.ant-typography:has-text("KeyPoint"),
+.ant-typography:has-text("Keypoint") {
+  display: none !important;
+}
+
+// Nascondi componenti header generici che potrebbero contenere titoli
+.lsf-header,
+.lsf-control-header,
+.lsf-labels-header {
+  display: none !important;
+}
+
+// RIPOSIZIONA LA TOOLBAR NATIVA affianco al menu personalizzato - TUTTO ORIZZONTALE
+.lsf-toolbar {
+  // FORZA la toolbar ad essere orizzontale e attaccata al menu
+  display: flex !important;
+  flex-direction: row !important;  // QUESTA è la chiave - forza orizzontale
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  margin: 0 !important;
+  padding: 12px 16px !important;
+  background-color: #f8f9fa !important;
+  border: 1px solid #e0e0e0 !important;
+  border-left: none !important; // Attaccata al menu a sinistra
+  border-radius: 0 8px 8px 0 !important; // Solo angoli destri arrotondati
+
+  // IMPORTANTE: Forza tutti i children ad essere orizzontali
+  > * {
+    display: inline-flex !important;
+    flex-direction: row !important;
+  }
+
+  // Gruppi tool orizzontali
+  .lsf-toolbar__group {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 4px !important;
+    align-items: center !important;
+
+    // Separa i gruppi visivamente
+    &:not(:last-child) {
+      padding-right: 8px;
+      border-right: 1px solid #e0e0e0;
+      margin-right: 8px;
+    }
+  }
+
+  // Stile tool individuali
+  .lsf-tool {
+    margin: 0 2px !important;
+  }
+}
+
+// Nascondi i tool Smart (che hanno -dynamic nel nome)
+.lsf-tool[data-tool-name*="-dynamic"] {
+  display: none !important;
+}
+
+// NASCONDI TOOL SPECIFICI DALLA TOOLBAR NATIVA - REGOLE AGGRESSIVE
+// Nascondi il pulsante eraser nativo con selettori multipli
+button[aria-label="eraser"],
+.lsf-tool[aria-label="eraser"],
+.lsf-toolbar button[aria-label="eraser"],
+.lsf-toolbar .lsf-tool[aria-label="eraser"],
+div.lsf-toolbar button[aria-label="eraser"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+// Nascondi tutti i tool smart con selettori multipli
+.lsf-tool_smart,
+.lsf-toolbar .lsf-tool_smart,
+button.lsf-tool_smart,
+.lsf-toolbar button.lsf-tool_smart,
+div.lsf-toolbar button.lsf-tool_smart {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+// NASCONDI SOLO I GRUPPI VUOTI (non tutti i gruppi)
+.lsf-toolbar__group:empty,
+.lsf-toolbar .lsf-toolbar__group:empty,
+*[class*="toolbar__group"]:empty,
+*[class*="toolbar"][class*="group"]:empty {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+// Nascondi tool che contengono "smart" nel nome o classe
+[class*="smart"],
+.lsf-toolbar [class*="smart"],
+button[class*="smart"] {
+  display: none !important;
+}
+
+// REGOLE UNIVERSALI PER NASCONDERE TUTTI I TOOL SMART - MASSIMA AGGRESSIVITA'
+// Nascondi QUALSIASI elemento con queste classi in QUALSIASI contesto
+*[class*="lsf-tool_smart"],
+*[class*="smart"],
+*.lsf-tool_smart,
+*:not(style):not(script)[class*="tool"]:has([class*="smart"]),
+button[class*="lsf-tool_smart"],
+div[class*="lsf-tool_smart"],
+span[class*="lsf-tool_smart"],
+.lsf-tool.lsf-tool_smart,
+.lsf-toolbar *[class*="lsf-tool_smart"],
+.lsf-toolbar button[class*="smart"],
+.lsf-toolbar .lsf-tool[class*="smart"],
+.lsf-toolbar button.lsf-tool_smart,
+.lsf-toolbar .lsf-tool.lsf-tool_smart,
+div.lsf-toolbar *[class*="smart"],
+[data-tool*="smart"],
+[aria-label*="smart"],
+[title*="Smart"],
+[title*="Auto"],
+[aria-label*="Auto"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  left: -99999px !important;
+  top: -99999px !important;
+  z-index: -9999 !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  transform: scale(0) !important;
+  clip: rect(0, 0, 0, 0) !important;
+  -webkit-clip-path: inset(100%) !important;
+  clip-path: inset(100%) !important;
+}
+
+// Nascondi tutti gli elementi con classi smart-related
+.lsf-tool__smart,
+.lsf-tool__extra,
+.lsf-tool__tooltip_controlled,
+.lsf-tool__controls,
+.lsf-range {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+// Nascondi gruppi che contengono SOLO tool smart
+.lsf-toolbar__group:has(.lsf-tool_smart):not(:has(.lsf-tool:not(.lsf-tool_smart))),
+.lsf-toolbar__group:has(button.lsf-tool_smart):not(:has(button:not(.lsf-tool_smart))) {
+  display: none !important;
+}
+
+// Fallback: nascondi gruppi se contengono tool con SVG che ha path con determinati attributi
+.lsf-toolbar__group:has(svg path[fill*="paint0_linear"]) {
+  display: none !important;
+}
+
+// Nascondi elementi con icone SVG specifiche (pattern degli smart tool)
+button:has(svg path[fill="url(#paint0_linear)"]),
+.lsf-tool:has(svg path[fill="url(#paint0_linear)"]) {
+  display: none !important;
+}
+
+// Personalizza l'aspetto dei label - ora si attacca alla toolbar a destra
+.lsf-labels {
+  // Layout più compatto
+  padding: 12px 16px;
+  border: 1px solid #e0e0e0;
+  border-right: none; // Rimosso per attaccarsi alla toolbar a destra
+  border-radius: 8px 0 0 8px; // Solo angoli sinistri arrotondati
+  background-color: #f8f9fa;
+  
+  // Rimuovi il margine di default
+  margin: 0;
+  
+  // Layout inline per tutti i label
+  &:not(.lsf-labels_inline) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .lsf-label {
+    // Stile più moderno per i pulsanti
+    border: 2px solid #d9d9d9;
+    border-radius: 4px;
+    padding: 6px 12px;
+    margin: 2px;
+    background: white;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 400;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    
+    // Stato normale
+    &:hover {
+      border-color: #1890ff;
+      background-color: #f0f8ff;
+    }
+    
+    // Stato selezionato
+    &.lsf-label_selected,
+    &_selected {
+      border-color: #1890ff;
+      background-color: #e6f7ff;
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(24, 144, 255, 0.2);
+    }
+    
+    // Aggiungi icone ai label based sul tipo
+    &[data-label-type="brush"]::before {
+      content: "🖌️";
+      margin-right: 4px;
+    }
+    
+    &[data-label-type="rectangle"]::before {
+      content: "⬛";
+      margin-right: 4px;
+    }
+    
+    &[data-label-type="keypoint"]::before {
+      content: "🎯";
+      margin-right: 4px;
+    }
+  }
+}
+
+// Personalizza la toolbar dei tool per rimuovere gli Smart
+.lsf-toolbar {
+  .lsf-tool {
+    // Nascondi tutti i tool che contengono "dynamic" o "smart" nel nome
+    &[title*="Smart"],
+    &[data-tool*="dynamic"],
+    &[class*="dynamic"] {
+      display: none !important;
+    }
+  }
+}
+
+// Personalizza l'aspetto generale del pannello label
+.lsf-labels-list {
+  // Raggruppa i label dello stesso tipo
+  .lsf-label-group {
+    margin-bottom: 8px;
+    
+    .lsf-label-group-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 4px;
+    }
+  }
+}
+
+// Status indicator per quando un label è selezionato
+.lsf-labels.has-selection::after {
+  content: "✓ Label selezionato - Pronto per annotare";
+  display: block;
+  padding: 6px 12px;
+  margin-top: 8px;
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 4px;
+  color: #52c41a;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+}

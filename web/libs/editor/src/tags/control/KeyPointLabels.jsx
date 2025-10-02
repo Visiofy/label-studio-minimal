@@ -1,6 +1,7 @@
 import { observer } from "mobx-react";
 import { types } from "mobx-state-tree";
 import React from "react";
+import { isAlive } from "mobx-state-tree";
 
 import LabelMixin from "../../mixins/LabelMixin";
 import Registry from "../../core/Registry";
@@ -71,7 +72,6 @@ const activateKeypointSam = () => {
   try {
     const keypointSamTool = document.querySelector('button[aria-label="key-point-tool"].lsf-tool_smart');
     if (keypointSamTool) {
-      console.log('Activating KeyPoint SAM tool');
       keypointSamTool.click();
       return true;
     }
@@ -108,15 +108,7 @@ const SamKeyPointLabels = ({ item }) => {
       const directLabels = document.querySelectorAll('.lsf-label');
       directLabels.forEach(label => allLabels.push(label));
     }
-    
-    console.log(`📋 Found ${allLabels.length} total labels in interface:`, 
-                allLabels.map((label, index) => ({
-                  index: index + 1,
-                  text: label.textContent?.trim(),
-                  isKeyPoint: label.closest('[class*="keypoint"]') !== null,
-                  group: label.closest('[class*="labels"]')?.className || 'unknown'
-                })));
-    
+
     return allLabels;
   };
 
@@ -131,19 +123,12 @@ const SamKeyPointLabels = ({ item }) => {
     // Verifica anche tramite attributi o classi del parent
     const isKeyPointByContext = label.closest('[class*="keypoint"]') !== null ||
                                label.closest('[data-type*="keypoint"]') !== null;
-    
-    console.log(`🔍 Checking if label "${label.textContent?.trim()}" is KeyPoint:`, {
-      isInOurContainer,
-      isKeyPointByContext,
-      result: isInOurContainer || isKeyPointByContext
-    });
-    
+
     return isInOurContainer || isKeyPointByContext;
   };
 
   // Funzione di attivazione SAM
   const activateKeypointSam = React.useCallback(async () => {
-    console.log('🚀 Activating KeyPoint SAM...');
     
     const samSelectors = [
       'button[aria-label="key-point-tool"].lsf-tool_smart',
@@ -158,29 +143,24 @@ const SamKeyPointLabels = ({ item }) => {
       try {
         const samTool = document.querySelector(selector);
         if (samTool) {
-          console.log(`✅ Found SAM tool: ${selector}`);
           
           const isActive = samTool.classList.contains('lsf-tool_active') || 
                           samTool.getAttribute('aria-pressed') === 'true';
           
           if (isActive) {
-            console.log('✅ SAM tool already active');
             return true;
           }
           
-          console.log('🔄 Clicking SAM tool...');
           samTool.click();
           
           setTimeout(() => {
             const nowActive = samTool.classList.contains('lsf-tool_active') || 
                              samTool.getAttribute('aria-pressed') === 'true';
-            console.log(nowActive ? '✅ SAM activated!' : '❌ SAM activation failed');
           }, 100);
           
           return true;
         }
       } catch (e) {
-        console.log(`❌ Selector failed: ${selector}`);
       }
     }
     
@@ -195,38 +175,30 @@ const SamKeyPointLabels = ({ item }) => {
           !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey) {
         
         const keyNumber = parseInt(event.key);
-        console.log(`🎯 Global keybinding ${keyNumber} pressed`);
         
         // Trova tutte le label nell'interfaccia
         const allLabels = getAllLabelsInOrder();
         
         if (keyNumber > allLabels.length) {
-          console.log(`❌ Keybinding ${keyNumber} out of range (${allLabels.length} total labels)`);
           return;
         }
         
         const targetLabel = allLabels[keyNumber - 1];
         
         if (!targetLabel) {
-          console.log(`❌ No label found for keybinding ${keyNumber}`);
           return;
         }
         
-        console.log(`📍 Keybinding ${keyNumber} targets label: "${targetLabel.textContent?.trim()}"`);
         
         // Verifica se questa label appartiene al gruppo KeyPoint
         if (isKeyPointLabel(targetLabel)) {
-          console.log(`✅ This is a KeyPoint label! Will activate SAM when selected.`);
           
           // Monitora quando questa label viene selezionata
           const checkSelectionAndActivate = (attempt = 1, maxAttempts = 5) => {
             const isSelected = targetLabel.classList.contains('lsf-label_selected');
             
-            console.log(`🔍 Check ${attempt}/${maxAttempts}: Label selected = ${isSelected}`);
             
             if (isSelected) {
-              console.log(`🎉 KeyPoint label "${targetLabel.textContent?.trim()}" is now selected!`);
-              console.log(`🚀 Activating SAM for KeyPoint group: ${item.name}`);
               
               // Attiva SAM con un piccolo delay per sicurezza
               setTimeout(() => {
@@ -238,14 +210,11 @@ const SamKeyPointLabels = ({ item }) => {
             
             if (attempt < maxAttempts) {
               const delay = 50 * attempt; // Delay progressivo
-              console.log(`⏳ Label not selected yet, retrying in ${delay}ms...`);
               setTimeout(() => {
                 checkSelectionAndActivate(attempt + 1, maxAttempts);
               }, delay);
             } else {
-              console.log(`⚠️ Label never got selected after ${maxAttempts} attempts`);
               // Prova comunque ad attivare SAM nel caso sia un timing issue
-              console.log(`🔄 Attempting SAM activation anyway...`);
               activateKeypointSam();
             }
             
@@ -256,16 +225,14 @@ const SamKeyPointLabels = ({ item }) => {
           checkSelectionAndActivate();
           
         } else {
-          console.log(`ℹ️ Not a KeyPoint label (belongs to different group), ignoring.`);
         }
       }
     };
 
-    console.log(`🎧 KeyPoint group "${item.name}" listening for global keybindings...`);
+    const groupName = item.name; // Store name to avoid accessing destroyed object
     document.addEventListener('keydown', handleKeyDown, { passive: true });
 
     return () => {
-      console.log(`🔇 KeyPoint group "${item.name}" stopped listening for keybindings`);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [item.name, activateKeypointSam]);
@@ -281,8 +248,6 @@ const SamKeyPointLabels = ({ item }) => {
         return;
       }
       
-      console.log(`🖱️ Direct click on KeyPoint label: "${labelElement.textContent?.trim()}"`);
-      console.log(`🚀 Activating SAM for group: ${item.name}`);
       
       setTimeout(() => {
         activateKeypointSam();
@@ -314,9 +279,7 @@ const SamKeyPointLabels = ({ item }) => {
       <button 
         onClick={() => {
           const allLabels = getAllLabelsInOrder();
-          console.log('=== ALL LABELS DEBUG ===');
           allLabels.forEach((label, index) => {
-            console.log(`${index + 1}: "${label.textContent?.trim()}" - KeyPoint: ${isKeyPointLabel(label)}`);
           });
         }}
         style={{ marginTop: '5px', fontSize: '10px' }}
@@ -341,7 +304,8 @@ const SamKeyPointLabels = ({ item }) => {
 };
 
 const HtxKeyPointLabels = observer(({ item }) => {
-  return <SamKeyPointLabels item={item} />;
+  // Hide native KeyPointLabels component - custom menu handles this
+  return null;
 });
 
 Registry.addTag("keypointlabels", KeyPointLabelsModel, HtxKeyPointLabels);

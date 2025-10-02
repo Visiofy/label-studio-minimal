@@ -1,6 +1,6 @@
 import { ff } from "@humansignal/core";
 import { inject } from "mobx-react";
-import { destroy, getRoot, getType, types } from "mobx-state-tree";
+import { destroy, getRoot, getType, isAlive, types } from "mobx-state-tree";
 
 import ImageView from "../../../components/ImageView/ImageView";
 import { customTypes } from "../../../core/CustomTypes";
@@ -684,8 +684,133 @@ const Model = types
     },
 
     afterRegionSelected(region) {
+      console.log(`[Image] afterRegionSelected called for region:`, {
+        type: region?.type,
+        id: region?.id,
+        control: region?.labeling?.controltagname,
+        fromName: region?.results?.[0]?.from_name?.name
+      });
+
       if (self.multiImage) {
         self.setCurrentImage(region.item_index);
+      }
+
+      // Automatic tool switching based on selected region type
+      if (region && region.type) {
+        const toolsManager = self.getToolsManager();
+        if (toolsManager) {
+          let targetTool = null;
+
+          // Map region types to corresponding tools
+          switch (region.type) {
+            case 'brushregion':
+              targetTool = toolsManager.allTools().find(tool =>
+                tool.fullName?.toLowerCase().includes('brush')
+              );
+              break;
+            case 'rectangleregion':
+              targetTool = toolsManager.allTools().find(tool =>
+                tool.fullName?.toLowerCase().includes('rectangle')
+              );
+              break;
+            case 'keypointregion':
+              targetTool = toolsManager.allTools().find(tool =>
+                tool.fullName?.toLowerCase().includes('keypoint') ||
+                tool.fullName?.toLowerCase().includes('point')
+              );
+              break;
+          }
+
+          // Switch to the appropriate tool if found and not already selected
+          if (targetTool && !targetTool.selected) {
+            console.log(`[Image] Auto-switching to ${targetTool.fullName} for ${region.type}`);
+            console.log(`[Image] Current tool before switch:`, toolsManager.findSelectedTool()?.fullName);
+
+            // CRITICAL: Reset current tool state before switching
+            // This prevents Rectangle from continuing a drawing started by region click
+            const currentTool = toolsManager.findSelectedTool();
+            if (currentTool) {
+              try {
+                console.log(`[Image] Resetting ${currentTool.fullName} state before switch`);
+
+                // Step 1: Delete any current region being drawn
+                if (currentTool.deleteRegion && typeof currentTool.deleteRegion === 'function') {
+                  currentTool.deleteRegion(); // This sets currentArea = null
+                }
+
+                // Step 2: Force finish any active drawing
+                if (currentTool.isDrawing) {
+                  console.log(`[Image] Tool is actively drawing, forcing finish`);
+                  try {
+                    // Try to cleanly finish the drawing
+                    if (currentTool.finishDrawing && typeof currentTool.finishDrawing === 'function') {
+                      currentTool.finishDrawing();
+                    } else if (currentTool._resetState && typeof currentTool._resetState === 'function') {
+                      currentTool._resetState();
+                    }
+                  } catch (finishError) {
+                    console.log(`[Image] Could not finish drawing:`, finishError.message);
+                  }
+                }
+
+                // Step 3: Reset drawing state
+                if (currentTool._resetState && typeof currentTool._resetState === 'function') {
+                  currentTool._resetState(); // This should reset modes and isDrawing
+                }
+
+                // Step 3.5: Call handleToolSwitch to reset TwoPointsDrawingTool volatile variables
+                if (currentTool.handleToolSwitch && typeof currentTool.handleToolSwitch === 'function') {
+                  console.log(`[Image] Calling handleToolSwitch to reset volatile state`);
+                  currentTool.handleToolSwitch(null); // Use null since we don't have the new tool yet
+                }
+
+                // Step 4: Clean up any uncloseable shapes (this is specifically for drawing tools)
+                if (currentTool.cleanupUncloseableShape && typeof currentTool.cleanupUncloseableShape === 'function') {
+                  currentTool.cleanupUncloseableShape();
+                }
+
+                console.log(`[Image] Tool state reset completed for ${currentTool.fullName}`);
+              } catch (e) {
+                console.log(`[Image] Could not reset current tool:`, e.message);
+              }
+            }
+
+            // FORCE complete tool deselection before selecting new tool
+            // This should completely reset all tool state
+            console.log(`[Image] Force deselecting all tools before switch`);
+            toolsManager.unselectAll();
+
+            // Directly select the target tool without timeout to avoid MobX issues
+            console.log(`[Image] Now selecting target tool: ${targetTool.fullName}`);
+            try {
+              toolsManager.selectTool(targetTool, true);
+              const selectedAfter = toolsManager.findSelectedTool();
+              console.log(`[Image] Tool selection result: ${selectedAfter?.fullName || 'none'}`);
+            } catch (selectError) {
+              console.log(`[Image] Error selecting tool:`, selectError.message);
+            }
+
+            // Set a flag to prevent the Rectangle tool from interpreting this as a drawing start
+            // This prevents the bug where Rectangle starts drawing from the region click point
+            self._toolSwitchingInProgress = true;
+
+            // Reset the flag after a delay to allow normal operation
+            setTimeout(() => {
+              self._toolSwitchingInProgress = false;
+            }, 100);
+
+            console.log(`[Image] Current tool after switch:`, toolsManager.findSelectedTool()?.fullName);
+          } else {
+            console.log(`[Image] Tool switch not needed - target:${targetTool?.fullName}, selected:${targetTool?.selected}`);
+          }
+
+          // Also select the corresponding label(s) if available
+          if (region.labeling && region.labeling.selectedLabels && region.labeling.selectedLabels.length > 0) {
+            console.log(`[Image] Auto-selecting labels for region:`, region.labeling.selectedLabels.map(l => l.value));
+            // The labels are already selected as part of region selection,
+            // the CustomMenu should sync with these automatically
+          }
+        }
       }
     },
 

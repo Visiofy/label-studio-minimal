@@ -1,9 +1,30 @@
-import { getEnv, getParent, getRoot, getType, types } from "mobx-state-tree";
+import { getEnv, getParent, getRoot, getType, isAlive, types } from "mobx-state-tree";
 import { guidGenerator } from "../core/Helpers";
 import { isDefined } from "../utils/utilities";
 import { AnnotationMixin } from "./AnnotationMixin";
 import { ReadOnlyRegionMixin } from "./ReadOnlyMixin";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH } from "../components/ImageView/Image";
+
+const safeMobxAccess = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (error) {
+    if (error.message && error.message.includes('no longer part of a state tree')) {
+      console.warn('[SafeMobX] Attempted access to destroyed MobX object:', error.message.substring(0, 100));
+      return fallback;
+    }
+    throw error;
+  }
+};
+
+const isSafeToUse = (item) => {
+  if (!item) return false;
+  try {
+    return isAlive(item);
+  } catch (error) {
+    return false;
+  }
+};
 
 const RegionsMixin = types
   .model({
@@ -224,6 +245,45 @@ const RegionsMixin = types
 
       afterUnselectRegion() {},
 
+      _checkIfToolSwitchNeeded() {
+        try {
+          const imageObject = self.object;
+          if (!imageObject) return false;
+
+          const toolsManager = imageObject.getToolsManager();
+          if (!toolsManager) return false;
+
+          const currentTool = toolsManager.findSelectedTool();
+          if (!currentTool) return false;
+
+          // Check if current region type matches current tool
+          let targetToolType = null;
+          switch (self.type) {
+            case 'brushregion':
+              targetToolType = 'brush';
+              break;
+            case 'rectangleregion':
+              targetToolType = 'rectangle';
+              break;
+            case 'keypointregion':
+              targetToolType = 'keypoint';
+              break;
+          }
+
+          if (targetToolType) {
+            const currentToolName = currentTool.fullName?.toLowerCase() || '';
+            const needsSwitch = !currentToolName.includes(targetToolType);
+            console.log(`[Regions] Tool switch check: current=${currentToolName}, target=${targetToolType}, needsSwitch=${needsSwitch}`);
+            return needsSwitch;
+          }
+
+          return false;
+        } catch (error) {
+          console.log("[Regions] Error checking tool switch need:", error);
+          return false;
+        }
+      },
+
       onClickRegion(ev) {
         const annotation = self.annotation;
 
@@ -234,6 +294,26 @@ const RegionsMixin = types
           annotation.stopLinkingMode();
           annotation.regionStore.unselectAll();
         } else {
+          // PREEMPTIVE: Set tool switching flag BEFORE selectArea to prevent Rectangle drawing bug
+          const imageObject = self.object;
+          const willNeedToolSwitch = self._checkIfToolSwitchNeeded();
+
+          if (willNeedToolSwitch && imageObject) {
+            console.log("[Regions] Preemptive tool switch prevention");
+            imageObject._toolSwitchingInProgress = true;
+
+            // Stop event propagation immediately
+            if (ev && ev.cancelBubble !== undefined) {
+              ev.cancelBubble = true;
+            }
+            if (ev && ev.stopPropagation) {
+              ev.stopPropagation();
+            }
+            if (ev && ev.preventDefault) {
+              ev.preventDefault();
+            }
+          }
+
           self._selectArea(ev?.ctrlKey || ev?.metaKey);
         }
       },
@@ -264,7 +344,10 @@ const RegionsMixin = types
       },
 
       setHighlight(val) {
-        self._highlighted = val;
+        if (!isSafeToUse(self)) return;
+        safeMobxAccess(() => {
+          self._highlighted = val;
+        });
       },
 
       toggleHighlight() {

@@ -1,7 +1,8 @@
+import { isAlive } from "mobx-state-tree";
+import { observer } from "mobx-react";
 import { Component } from "react";
 import { Badge, Button, Card, List, Popconfirm } from "antd";
 import { Tooltip } from "@humansignal/ui";
-import { observer } from "mobx-react";
 import {
   DeleteOutlined,
   EyeInvisibleOutlined,
@@ -17,26 +18,41 @@ import Utils from "../../utils";
 import styles from "./Annotations.module.scss";
 
 /** @deprecated this file is not used; DraftPanel is moved to separate component */
-
 export const DraftPanel = observer(({ item }) => {
-  if (!item.draftSaved && !item.versions.draft) return null;
-  const saved = item.draft && item.draftSaved ? ` saved ${Utils.UDate.prettyDate(item.draftSaved)}` : "";
+  if (!item || !isAlive(item)) return null;
 
-  if (!item.selected) {
-    if (!item.draft) return null;
+  const saved = safe(
+    () =>
+      item.draft && item.draftSaved
+        ? ` saved ${Utils.UDate.prettyDate(item.draftSaved)}`
+        : "",
+    ""
+  );
+
+  if (!safe(() => item.selected, false)) {
+    if (!safe(() => item.draft, false)) return null;
     return <div>draft{saved}</div>;
   }
-  if (!item.versions.result || !item.versions.result.length) {
+
+  if (!safe(() => item.versions.result?.length, false)) {
     return <div>{saved ? `draft${saved}` : "not submitted draft"}</div>;
   }
+
   return (
     <div>
       <Tooltip
         alignment="top-left"
-        title={item.draftSelected ? "switch to submitted result" : "switch to current draft"}
+        title={safe(
+          () => (item.draftSelected ? "switch to submitted result" : "switch to current draft"),
+          ""
+        )}
       >
-        <Button type="link" onClick={item.toggleDraft} className={styles.draftbtn}>
-          {item.draftSelected ? "draft" : "submitted"}
+        <Button
+          type="link"
+          onClick={safe(() => item.toggleDraft, () => {})}
+          className={styles.draftbtn}
+        >
+          {safe(() => (item.draftSelected ? "draft" : "submitted"), "submitted")}
         </Button>
       </Tooltip>
       {saved}
@@ -44,7 +60,22 @@ export const DraftPanel = observer(({ item }) => {
   );
 });
 
+/* ----------  helper sicuro  ---------- */
+const safe = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch (err) {
+    if (err?.message?.includes("no longer part of a state tree")) {
+      console.warn("[Annotations] Accesso a nodo MST distrutto bloccato.");
+      return fallback;
+    }
+    throw err;
+  }
+};
+
 const Annotation = observer(({ item, store }) => {
+  if (!item || !isAlive(item)) return null;
+
   const removeHoney = () => (
     <Tooltip alignment="top-left" title="Unset this result as a ground truth">
       <Button
@@ -52,7 +83,7 @@ const Annotation = observer(({ item, store }) => {
         type="primary"
         onClick={(ev) => {
           ev.preventDefault();
-          item.setGroundTruth(false);
+          safe(() => item.setGroundTruth(false));
         }}
       >
         <StarOutlined />
@@ -61,7 +92,10 @@ const Annotation = observer(({ item, store }) => {
   );
 
   const setHoney = () => {
-    const title = item.ground_truth ? "Unset this result as a ground truth" : "Set this result as a ground truth";
+    const title = safe(
+      () => (item.ground_truth ? "Unset this result as a ground truth" : "Set this result as a ground truth"),
+      ""
+    );
 
     return (
       <Tooltip alignment="top-left" title={title}>
@@ -70,10 +104,10 @@ const Annotation = observer(({ item, store }) => {
           look="link"
           onClick={(ev) => {
             ev.preventDefault();
-            item.setGroundTruth(!item.ground_truth);
+            safe(() => item.setGroundTruth(!item.ground_truth));
           }}
         >
-          {item.ground_truth ? <StarFilled /> : <StarOutlined />}
+          {safe(() => (item.ground_truth ? <StarFilled /> : <StarOutlined />), <StarOutlined />)}
         </Button>
       </Tooltip>
     );
@@ -82,73 +116,51 @@ const Annotation = observer(({ item, store }) => {
   const toggleVisibility = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    item.toggleVisibility();
-    const c = document.getElementById(`c-${item.id}`);
-
-    if (c) c.style.display = item.hidden ? "none" : "unset";
+    safe(() => item.toggleVisibility());
+    const c = document.getElementById(`c-${safe(() => item.id)}`);
+    if (c) c.style.display = safe(() => item.hidden, false) ? "none" : "unset";
   };
 
   const highlight = () => {
-    const c = document.getElementById(`c-${item.id}`);
-
+    const c = document.getElementById(`c-${safe(() => item.id)}`);
     if (c) c.classList.add("hover");
   };
 
   const unhighlight = () => {
-    const c = document.getElementById(`c-${item.id}`);
-
+    const c = document.getElementById(`c-${safe(() => item.id)}`);
     if (c) c.classList.remove("hover");
   };
 
-  /**
-   * Default badge for saved annotations
-   */
   let badge = <Badge status="default" />;
-
-  /**
-   *
-   */
   let annotationID;
 
-  /**
-   * Title of card
-   */
-  if (item.userGenerate && !item.sentUserGenerate) {
+  if (safe(() => item.userGenerate && !item.sentUserGenerate, false)) {
     annotationID = <span className={styles.title}>Unsaved Annotation</span>;
   } else {
-    if (item.pk) {
-      annotationID = <span className={styles.title}>ID {item.pk}</span>;
-    } else if (item.id) {
-      annotationID = <span className={styles.title}>ID {item.id}</span>;
+    if (safe(() => item.pk, false)) {
+      annotationID = <span className={styles.title}>ID {safe(() => item.pk, "-")}</span>;
+    } else if (safe(() => item.id, false)) {
+      annotationID = <span className={styles.title}>ID {safe(() => item.id, "-")}</span>;
     }
   }
 
-  /**
-   * Badge for processing of user generate annotation
-   */
-  if (item.userGenerate) {
+  if (safe(() => item.userGenerate, false)) {
     badge = <Badge status="processing" />;
   }
 
-  /**
-   * Badge for complete of user generate annotation
-   */
-  if (item.userGenerate && item.sentUserGenerate) {
+  if (safe(() => item.userGenerate && item.sentUserGenerate, false)) {
     badge = <Badge status="success" />;
   }
 
   const btnsView = () => {
-    const confirm = () => {
-      // ev.preventDefault();
-      // debugger;
-      item.list.deleteAnnotation(item);
-    };
+    const confirm = () => safe(() => item.list.deleteAnnotation(item));
 
     return (
       <div className={styles.buttons}>
-        {store.hasInterface("ground-truth") && (item.ground_truth ? removeHoney() : setHoney())}
+        {safe(() => store.hasInterface("ground-truth"), false) &&
+          (safe(() => item.ground_truth, false) ? removeHoney() : setHoney())}
         &nbsp;
-        {store.hasInterface("annotations:delete") && (
+        {safe(() => store.hasInterface("annotations:delete"), false) && (
           <Tooltip placement="topLeft" title="Delete selected annotation">
             <Popconfirm
               placement="bottomLeft"
@@ -170,10 +182,14 @@ const Annotation = observer(({ item, store }) => {
 
   return (
     <List.Item
-      key={item.id}
-      className={item.selected ? `${styles.annotation} ${styles.annotation_selected}` : styles.annotation}
+      key={safe(() => item.id, Math.random())}
+      className={
+        safe(() => item.selected, false)
+          ? `${styles.annotation} ${styles.annotation_selected}`
+          : styles.annotation
+      }
       onClick={() => {
-        !item.selected && store.annotationStore.selectAnnotation(item.id);
+        if (!safe(() => item.selected, false)) safe(() => store.annotationStore.selectAnnotation(item.id));
       }}
       onMouseEnter={highlight}
       onMouseLeave={unhighlight}
@@ -184,23 +200,30 @@ const Annotation = observer(({ item, store }) => {
             {badge}
             {annotationID}
           </div>
-          {item.pk ? "Created" : "Started"}
-          <i>{item.createdAgo ? ` ${item.createdAgo} ago` : ` ${Utils.UDate.prettyDate(item.createdDate)}`}</i>
-          {item.createdBy && item.pk ? ` by ${item.createdBy}` : null}
+          {safe(() => item.pk, false) ? "Created" : "Started"}
+          <i>
+            {safe(() => item.createdAgo)
+              ? ` ${safe(() => item.createdAgo)} ago`
+              : ` ${Utils.UDate.prettyDate(safe(() => item.createdDate))}`}
+          </i>
+          {safe(() => item.createdBy && item.pk) ? ` by ${safe(() => item.createdBy)}` : null}
           <DraftPanel item={item} />
         </div>
-        {/* platform uses was_cancelled so check both */}
-        {store.hasInterface("skip") && (item.skipped || item.was_cancelled) && (
-          <Tooltip alignment="top-left" title="Skipped annotation">
-            <StopOutlined className={styles.skipped} />
-          </Tooltip>
-        )}
-        {store.annotationStore.viewingAll && (
+
+        {safe(() => store.hasInterface("skip"), false) &&
+          (safe(() => item.skipped || item.was_cancelled, false)) && (
+            <Tooltip alignment="top-left" title="Skipped annotation">
+              <StopOutlined className={styles.skipped} />
+            </Tooltip>
+          )}
+
+        {safe(() => store.annotationStore.viewingAll, false) && (
           <Button size="small" type="primary" ghost onClick={toggleVisibility}>
-            {item.hidden ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+            {safe(() => item.hidden, false) ? <EyeInvisibleOutlined /> : <EyeOutlined />}
           </Button>
         )}
-        {item.selected && btnsView()}
+
+        {safe(() => item.selected, false) && btnsView()}
       </div>
     </List.Item>
   );
@@ -217,16 +240,14 @@ class Annotations extends Component {
         </div>
 
         <div style={{ marginRight: "1px" }}>
-          {store.hasInterface("annotations:add-new") && (
+          {safe(() => store.hasInterface("annotations:add-new"), false) && (
             <Tooltip alignment="top-left" title="Create a new annotation">
               <Button
                 size="small"
                 onClick={(ev) => {
                   ev.preventDefault();
-                  const c = store.annotationStore.createAnnotation();
-
-                  store.annotationStore.selectAnnotation(c.id);
-                  // c.list.selectAnnotation(c);
+                  const c = safe(() => store.annotationStore.createAnnotation());
+                  if (c) safe(() => store.annotationStore.selectAnnotation(c.id));
                 }}
               >
                 <PlusOutlined />
@@ -237,10 +258,10 @@ class Annotations extends Component {
           <Tooltip alignment="top-left" title="View all annotations">
             <Button
               size="small"
-              type={store.annotationStore.viewingAll ? "primary" : ""}
+              type={safe(() => store.annotationStore.viewingAll, false) ? "primary" : ""}
               onClick={(ev) => {
                 ev.preventDefault();
-                store.annotationStore.toggleViewingAllAnnotations();
+                safe(() => store.annotationStore.toggleViewingAllAnnotations());
               }}
             >
               <WindowsOutlined />
@@ -250,11 +271,13 @@ class Annotations extends Component {
       </div>
     );
 
-    const content = store.annotationStore.annotations.map((c) => <Annotation key={c.id} item={c} store={store} />);
+    const content = safe(() => store.annotationStore.annotations, [])
+      .filter((c) => c && isAlive(c))
+      .map((c) => <Annotation key={safe(() => c.id, Math.random())} item={c} store={store} />);
 
     return (
       <Card title={title} size="small" bodyStyle={{ padding: "0", paddingTop: "1px" }}>
-        <List>{store.annotationStore.annotations ? content : <p>No annotations submitted yet</p>}</List>
+        <List>{content.length ? content : <p>No annotations submitted yet</p>}</List>
       </Card>
     );
   }

@@ -1302,6 +1302,23 @@ const Configurator = ({
     return res;
   };
 
+  const onBack = () => {
+    if (hasChanges) {
+      const confirmed = window.confirm(
+        "Le modifiche andranno perse. Sei sicuro di voler continuare?"
+      );
+      if (!confirmed) return;
+    }
+
+    // Read the 'from' parameter from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromUrl = urlParams.get('from');
+
+    // If 'from' exists, decode and navigate there, otherwise default to Data Manager
+    const backUrl = fromUrl ? decodeURIComponent(fromUrl) : '/projects/1/data?tab=1';
+    window.location.href = backUrl;
+  };
+
   function completeAfter(cm, pred) {
     if (!pred || pred()) {
       setTimeout(() => {
@@ -1418,6 +1435,9 @@ const Configurator = ({
                 </Elem>
               </Block>
             )}
+            <Button look="secondary" size="compact" style={{ width: 120, marginRight: 12 }} onClick={onBack}>
+              Back
+            </Button>
             <Button look="primary" size="compact" style={{ width: 120 }} onClick={onSave} waiting={waiting}>
               {waiting ? "Saving..." : "Save"}
             </Button>

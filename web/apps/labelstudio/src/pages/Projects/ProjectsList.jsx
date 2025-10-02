@@ -80,7 +80,7 @@
     
 //     // Redirect diretto all'endpoint di export
 //     const currentPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-//     const exportUrl = `http://192.168.2.136:6001/api/export_format?source_port=${currentPort}&project_id=${project.id}`;
+//     const exportUrl = `http://${window.location.protocol}//${window.location.hostname}:6001/api/export_format?source_port=${currentPort}&project_id=${project.id}`;
     
 //     window.location.href = exportUrl;
 //   };
@@ -171,7 +171,6 @@
 import chr from "chroma-js";
 import { format } from "date-fns";
 import { useMemo } from "react";
-import { NavLink } from "react-router-dom";
 import { IconCheck, IconEllipsis, IconMinus, IconSparks } from "@humansignal/icons";
 import { Userpic } from "@humansignal/ui";
 import { Button, Dropdown, Menu, Pagination } from "../../components";
@@ -240,7 +239,7 @@ const ProjectCard = ({ project }) => {
   }, [color]);
 
   return (
-    <Elem tag={NavLink} name="link" to={`/projects/${project.id}/data`} data-external>
+    <Elem tag="div" name="link" style={{ cursor: 'default', opacity: 0.6 }}>
       <Block name="project-card" mod={{ colored: !!color }} style={projectColors}>
         <Elem name="header">
           <Elem name="title">

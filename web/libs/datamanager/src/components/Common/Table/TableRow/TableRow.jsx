@@ -60,7 +60,17 @@ export const TableRow = observer(({ data, even, style, wrapperStyle, onClick, st
   };
 
   return (
-    <div className={rowWrapperCN.mod(mods).toString()} style={wrapperStyle} onClick={(e) => onClick?.(data, e)}>
+    <div className={rowWrapperCN.mod(mods).toString()} style={wrapperStyle} onClick={(e) => {
+      try {
+        onClick?.(data, e);
+      } catch (error) {
+        if (error.message && error.message.includes('no longer part of a state tree')) {
+          console.warn('[SafeMobX] Attempted to call onClick on destroyed MobX object');
+          return;
+        }
+        throw error;
+      }
+    }}>
       <div className={tableRowCN.toString()} style={style} data-leave={true}>
         {columns.map((col) => {
           return <CellRenderer key={col.id} col={col} data={data} cellViews={cellViews} decoration={decoration} />;

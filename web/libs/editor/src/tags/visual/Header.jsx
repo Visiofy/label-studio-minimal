@@ -42,18 +42,8 @@ const Model = types.model({
 const HeaderModel = types.compose("HeaderModel", Model, ProcessAttrsMixin);
 
 const HtxHeader = observer(({ item }) => {
-  const size = clamp(Number.parseInt(item.size), 1, 5);
-  const style = item.style ? Tree.cssConverter(item.style) : { margin: "10px 0" };
-
-  if (!style.fontSize && size > 4) {
-    style.fontSize = size === 5 ? "1.2em" : "1.1em";
-  }
-
-  return (
-    <Typography.Title underline={item.underline} level={size} style={style}>
-      {item._value}
-    </Typography.Title>
-  );
+  // Hide native Header component - custom menu handles this
+  return null;
 });
 
 Registry.addTag("header", HeaderModel, HtxHeader);

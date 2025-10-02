@@ -99,12 +99,28 @@ const assembleClass = (block: string, elem?: string, mix?: CNMix | CNMix[], mod?
         return m !== undefined && m !== null;
       })
       .map((m) => {
-        if (typeof m === "string") {
-          return m;
+        try {
+          if (typeof m === "string") {
+            return m;
+          }
+          return m?.toClassName?.();
+        } catch (error: any) {
+          console.warn('[BEM] Error processing mix item:', error?.message || error, m);
+          return null;
         }
-        return m?.toClassName?.();
       })
-      .reduce((res, cls) => [...res, ...cls!.split(/\s+/)], [] as string[]);
+      .filter(cls => cls !== null && cls !== undefined)
+      .reduce((res, cls) => {
+        try {
+          if (typeof cls === 'string') {
+            return [...res, ...cls.split(/\s+/)];
+          }
+          return res;
+        } catch (error: any) {
+          console.warn('[BEM] Error splitting class names:', error?.message || error, cls);
+          return res;
+        }
+      }, [] as string[]);
 
     finalClass.push(...Array.from(new Set(mixMap)));
   }
@@ -189,12 +205,20 @@ export const BemWithSpecifiContext = (context?: Context<CN | null>) => {
       { tag = "div", name, mod, mix, ...rest }: WrappedComponentProps<T, D>,
       ref: any,
     ) => {
-      const rootClass = cn(name);
-      const finalMix = ([] as [CNMix?]).concat(mix).filter((cn) => !!cn);
-      const className = rootClass
-        .mod(mod)
-        .mix(...(finalMix as CNMix[]), rest.className)
-        .toClassName();
+      let className;
+      let rootClass;
+      try {
+        rootClass = cn(name);
+        const finalMix = ([] as [CNMix?]).concat(mix).filter((cn) => !!cn);
+        className = rootClass
+          .mod(mod)
+          .mix(...(finalMix as CNMix[]), rest.className)
+          .toClassName();
+      } catch (error: any) {
+        console.error('[BEM Block] Error building className:', error?.message || error);
+        rootClass = cn(name); // Fallback per il context
+        className = `${CSS_PREFIX}${name}`;
+      }
       const finalProps = { ...rest, ref, className } as any;
 
       return createElement(
@@ -214,13 +238,20 @@ export const BemWithSpecifiContext = (context?: Context<CN | null>) => {
     ) => {
       const blockCtx = useContext(Context);
 
-      const finalMix = ([] as [CNMix?]).concat(mix).filter((cn) => !!cn);
+      let className;
+      try {
+        const finalMix = ([] as [CNMix?]).concat(mix).filter((cn) => !!cn);
 
-      const className = (block ? cn(block) : blockCtx)!
-        .elem(name)
-        .mod(mod)
-        .mix(...(finalMix as CNMix[]), rest.className)
-        .toClassName();
+        className = (block ? cn(block) : blockCtx)!
+          .elem(name)
+          .mod(mod)
+          .mix(...(finalMix as CNMix[]), rest.className)
+          .toClassName();
+      } catch (error: any) {
+        console.error('[BEM Elem] Error building className:', error?.message || error);
+        const blockName = block || blockCtx?.toClassName() || 'unknown';
+        className = `${CSS_PREFIX}${blockName}__${name}`;
+      }
 
       const finalProps: any = { ...rest, ref, className };
 

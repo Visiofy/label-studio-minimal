@@ -8,6 +8,7 @@ services:
       - "8081:8086"
     depends_on:
       - app
+    # network_mode: "host"
     environment:
       - LABEL_STUDIO_HOST=${LABEL_STUDIO_HOST:-}
     #   Optional: Specify SSL termination certificate & key
@@ -25,6 +26,8 @@ services:
     stdin_open: true
     tty: true
     build: .
+    network_mode: "host"
+    
     image: heartexlabs/label-studio:latest
     restart: unless-stopped
     expose:

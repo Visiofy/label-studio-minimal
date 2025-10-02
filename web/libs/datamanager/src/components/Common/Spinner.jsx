@@ -1,6 +1,6 @@
 import { inject } from "mobx-react";
 import React from "react";
-import Running from "../../assets/running";
+import { CustomLogo } from "@humansignal/ui/lib/custom-logo/CustomLogo";
 
 const injector = inject(({ store }) => {
   return {
@@ -22,36 +22,25 @@ export const Spinner = injector(({ SDK, visible = true, ...props }) => {
     }
   }, [props.size]);
 
-  const source = React.useMemo(() => {
-    return Running.full;
-  }, [props.size]);
-
-  const videoStyles = {
-    width: "100%",
-    height: "100%",
-    objectFit: "contain",
-  };
-
   const ExternalSpinner = SDK?.spinner;
 
   return visible ? (
     <div
       {...props}
       style={{ width: size, height: size }}
-      children={
+      children={(
         <div style={{ width: "100%", height: "100%" }}>
           {ExternalSpinner ? (
-            <ExternalSpinner size={size} />
+            <ExternalSpinner size={size}/>
           ) : (
-            <img
-              src={source.x1}
-              srcSet={[`${source.x1} 1x`, `${source.x2} 2x`].join(",")}
-              style={videoStyles}
-              alt="opossum loader"
+            <CustomLogo
+              size={size}
+              animate={true}
+              variant="opossum"
             />
           )}
         </div>
-      }
+      )}
     />
   ) : null;
 });

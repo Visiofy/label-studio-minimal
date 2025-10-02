@@ -5,8 +5,8 @@ import { Elem } from "../../utils/bem";
 import { isSelfServe } from "../../utils/billing";
 import { FF_BULK_ANNOTATION } from "../../utils/feature-flags";
 import { EditingHistory } from "./HistoryActions";
-import { DynamicPreannotationsToggle } from "../AnnotationTab/DynamicPreannotationsToggle";
-import { AutoAcceptToggle } from "../AnnotationTab/AutoAcceptToggle";
+// import { DynamicPreannotationsToggle } from "../AnnotationTab/DynamicPreannotationsToggle";
+// import { AutoAcceptToggle } from "../AnnotationTab/AutoAcceptToggle";
 import { GroundTruth } from "../CurrentEntity/GroundTruth";
 
 export const Actions = ({ store }) => {
@@ -51,12 +51,7 @@ export const Actions = ({ store }) => {
 
       {store.hasInterface("ground-truth") && !isBulkMode && <GroundTruth entity={entity} />}
 
-      {!isViewAll && (
-        <Elem name="section">
-          <DynamicPreannotationsToggle />
-          <AutoAcceptToggle />
-        </Elem>
-      )}
+      {/* Removed DynamicPreannotationsToggle and AutoAcceptToggle */}
     </Elem>
   );
 };
