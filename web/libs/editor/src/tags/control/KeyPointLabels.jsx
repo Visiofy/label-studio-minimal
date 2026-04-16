@@ -171,6 +171,19 @@ const SamKeyPointLabels = ({ item }) => {
   // Event listener per keybinding GLOBALI
   React.useEffect(() => {
     const handleKeyDown = (event) => {
+      // Check if user is typing in an input field or textarea
+      const activeElement = document.activeElement;
+      const isTyping = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.isContentEditable
+      );
+
+      // If user is typing, don't intercept the key
+      if (isTyping) {
+        return;
+      }
+
       if (event.key >= '1' && event.key <= '9' && 
           !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey) {
         

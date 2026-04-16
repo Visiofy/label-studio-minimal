@@ -88,17 +88,19 @@ class ToolsManager {
 
     if (tool.default && !this._default_tool) this._default_tool = tool;
 
-    if (this.preservedTool && tool.shouldPreserveSelectedState) {
-      if (tool.fullName === this.preservedTool && tool.setSelected) {
-        this.unselectAll();
-        this.selectTool(tool, true, true);
-        return;
-      }
-    }
+    // DISABILITATO: non ripristinare il tool salvato dal localStorage
+    // if (this.preservedTool && tool.shouldPreserveSelectedState) {
+    //   if (tool.fullName === this.preservedTool && tool.setSelected) {
+    //     this.unselectAll();
+    //     this.selectTool(tool, true, true);
+    //     return;
+    //   }
+    // }
 
-    if (this._default_tool && !this.hasSelected) {
-      this.selectTool(this._default_tool, true, true);
-    }
+    // DISABILITATO: non selezionare automaticamente il tool di default all'avvio
+    // if (this._default_tool && !this.hasSelected) {
+    //   this.selectTool(this._default_tool, true, true);
+    // }
   }
 
   unselectAll() {
@@ -136,6 +138,24 @@ class ToolsManager {
     currentTool?.handleToolSwitch?.(tool);
 
     if (selected) {
+      // Deselect all regions when changing tools to prevent selection blocking
+      // This fixes the bug where a Brush region remains selected when switching to Rectangle
+      if (currentTool && currentTool !== tool) {
+        try {
+          const annotation = this.root?.annotationStore?.selected;
+          if (annotation) {
+            annotation.unselectAll();
+          }
+        } catch (error) {
+          console.warn('Error unselecting regions on tool change:', error);
+        }
+
+        // Explicitly deselect the current tool first to prevent double selection
+        if (currentTool.setSelected) {
+          currentTool.setSelected(false);
+        }
+      }
+
       this.unselectAll();
       tool.setSelected?.(true, isInitial);
 
@@ -153,9 +173,12 @@ class ToolsManager {
         }
       }, 10); // Small delay to ensure DOM is ready
     } else {
-      const drawingTool = this.findDrawingTool();
+      // DISABILITATO: non selezionare automaticamente un altro tool quando si deseleziona
+      // const drawingTool = this.findDrawingTool();
+      // this.selectTool(drawingTool ?? this._default_tool, true);
 
-      this.selectTool(drawingTool ?? this._default_tool, true);
+      // Invece, deseleziona semplicemente tutti i tool
+      this.unselectAll();
     }
   }
 

@@ -1,4 +1,4 @@
-import { types } from "mobx-state-tree";
+import { types, isAlive } from "mobx-state-tree";
 
 import BaseTool, { DEFAULT_DIMENSIONS } from "./Base";
 import ToolMixin from "../mixins/Tool";
@@ -6,6 +6,7 @@ import { ThreePointsDrawingTool, TwoPointsDrawingTool } from "../mixins/DrawingT
 import { AnnotationMixin } from "../mixins/AnnotationMixin";
 import { NodeViews } from "../components/Node/Node";
 import { FF_DEV_3793, isFF } from "../utils/feature-flags";
+import { findClosestParent } from "../utils/utilities";
 
 const _BaseNPointTool = types
   .model("BaseNTool", {
@@ -64,13 +65,149 @@ const _BaseNPointTool = types
       },
     };
   })
-  .actions((self) => ({
-    beforeCommitDrawing() {
-      const s = self.getActiveShape;
+  .actions((self) => {
+    const Super = {
+      mousedownEv: self.mousedownEv,
+    };
 
-      return s.width > self.MIN_SIZE.X && s.height * self.MIN_SIZE.Y;
-    },
-  }));
+    return {
+      /**
+       * Find if there's a region at the given coordinates
+       * Similar to Brush.findRegionAtCoordinates but simpler for Rectangle
+       */
+      findRegionAtCoordinates(internalX, internalY, canvasX, canvasY) {
+        try {
+          const regions = self.annotation?.regionStore?.regions;
+          if (!regions || regions.length === 0) return null;
+
+          const pointInBBox = (bbox, px, py) => {
+            if (!bbox) return false;
+            if (!Number.isFinite(px) || !Number.isFinite(py)) return false;
+            return px >= bbox.left && px <= bbox.right && py >= bbox.top && py <= bbox.bottom;
+          };
+
+          for (const region of regions) {
+            if (!region || !isAlive(region)) continue;
+            // Skip rectangle regions to allow editing them
+            if (region.type === "rectangleregion") continue;
+            if (self.obj.multiImage && region.item_index !== self.obj.currentImage) continue;
+
+            const hasCanvasHit = pointInBBox(region.bboxCoordsCanvas, canvasX, canvasY);
+            if (hasCanvasHit) {
+              console.log('[Rectangle] Found region via canvas bbox at coords:', { region: region.id, type: region.type });
+              return region;
+            }
+
+            const hasInternalHit = pointInBBox(region.bboxCoords, internalX, internalY);
+            if (hasInternalHit) {
+              console.log('[Rectangle] Found region via internal bbox at coords:', { region: region.id, type: region.type });
+              return region;
+            }
+          }
+
+          return null;
+        } catch (error) {
+          console.warn('[Rectangle] Error checking regions at coordinates:', error);
+          return null;
+        }
+      },
+
+      /**
+       * Override mousedownEv to check for existing regions
+       * If clicking on an existing region, delegate to region click handler
+       * Otherwise, proceed with normal drawing
+       */
+      mousedownEv(ev, [internalX, internalY], [x, y]) {
+        if (!self.isAllowedInteraction(ev)) return;
+
+        // Clear tool switching flag if set
+        if (self.obj && self.obj._toolSwitchingInProgress) {
+          console.log("[Rectangle] Tool switching in progress flag detected, clearing and continuing");
+          self.obj._toolSwitchingInProgress = false;
+        }
+
+        const inside = findClosestParent(
+          ev.target,
+          (el) => el === self.obj.stageRef.content,
+          (el) => el.parentElement
+        );
+        if (!inside) return;
+
+        // Check if there are any regions at these coordinates
+        const regionAtPointer = self.findRegionAtCoordinates(internalX, internalY, x, y);
+
+        console.log('[Rectangle] mousedownEv - click analysis:', {
+          x, y,
+          hasRegionAtCoords: Boolean(regionAtPointer),
+          clickedOnCanvas: ev.target?.tagName === 'CANVAS'
+        });
+
+        if (regionAtPointer) {
+          console.log('[Rectangle] ✅ Detected region at coordinates, delegating to region click handler');
+
+          // Mark event as delegated
+          const markDelegated = (eventLike) => {
+            if (!eventLike || typeof eventLike !== 'object') return;
+            eventLike.__lsfRectangleDelegated = true;
+            eventLike.__lsfRectangleDelegatedTarget = regionAtPointer?.id;
+          };
+
+          // Stop the original event from bubbling
+          const stopOriginalEvent = (eventLike) => {
+            if (!eventLike) return;
+            if (typeof eventLike.cancelBubble !== "undefined") eventLike.cancelBubble = true;
+            if (typeof eventLike.stopPropagation === "function") eventLike.stopPropagation();
+            if (typeof eventLike.preventDefault === "function") eventLike.preventDefault();
+          };
+
+          markDelegated(ev);
+          markDelegated(ev?.evt);
+          stopOriginalEvent(ev);
+          stopOriginalEvent(ev?.evt);
+
+          // Create synthetic event for region click handler
+          const syntheticEvent = {
+            evt: ev?.evt || ev,
+            detail: ev?.detail ?? ev?.evt?.detail ?? 1,
+            cancelBubble: true,
+            stopPropagation: () => {},
+            preventDefault: () => {},
+            __lsfSynthetic: true,
+          };
+
+          if (typeof regionAtPointer.onClickRegion === 'function') {
+            regionAtPointer.onClickRegion(syntheticEvent);
+          } else if (regionAtPointer.annotation) {
+            // Fallback: at least select the region
+            regionAtPointer.annotation.selectArea(regionAtPointer);
+          }
+
+          return;
+        }
+
+        console.log('[Rectangle] ❌ No region at coordinates, proceeding with drawing');
+
+        // Check if a label is selected before drawing
+        if (self.control && !self.control.isSelected) {
+          console.log('[Rectangle] ❌ No label selected, cannot create region');
+          if (window.showLabelingWarning) {
+            window.showLabelingWarning('Seleziona una label prima di disegnare! Premi un tasto numerico (1-9) oppure clicca direttamente sul menù per selezionare una label.');
+          }
+          return;
+        }
+
+        // No region at coordinates, proceed with normal drawing
+        // NOTE: TwoPointsDrawingTool expects internal coordinates only
+        return Super.mousedownEv(ev, [internalX, internalY]);
+      },
+
+      beforeCommitDrawing() {
+        const s = self.getActiveShape;
+        
+        return s.width > self.MIN_SIZE.X && s.height * self.MIN_SIZE.Y;
+      },
+    };
+  });
 
 const _Tool = types
   .model("RectangleTool", {

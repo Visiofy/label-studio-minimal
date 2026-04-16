@@ -790,8 +790,8 @@ if ENABLE_CSP := get_bool_env('ENABLE_CSP', True):
         'https://*.google-analytics.com',
         'https://*.googletagmanager.com',
         'https://*.google.com',
-        'http://192.168.2.37:*',  # Allow local network image sources
-        'https://192.168.2.37:*',  # Allow local network HTTPS image sources
+        'http://192.168.2.136:*',  # Allow local network image sources
+        'https://192.168.2.136:*',  # Allow local network HTTPS image sources
         '*',  # Temporary: Allow all image sources for debugging
     )
     CSP_CONNECT_SRC = (
@@ -803,8 +803,8 @@ if ENABLE_CSP := get_bool_env('ENABLE_CSP', True):
         'https://*.googletagmanager.com',
         'https://*.g.double' + 'click.net',  # hacky way of suppressing codespell complaint
         'https://*.ingest.sentry.io',
-        'http://192.168.2.37:*',  # Allow local network API connections
-        'https://192.168.2.37:*',  # Allow local network HTTPS API connections
+        'http://192.168.2.136:*',  # Allow local network API connections
+        'https://192.168.2.136:*',  # Allow local network HTTPS API connections
     )
     # Note that this will be overridden to real CSP for views that use the override_report_only_csp decorator
     CSP_REPORT_ONLY = get_bool_env('LS_CSP_REPORT_ONLY', True)

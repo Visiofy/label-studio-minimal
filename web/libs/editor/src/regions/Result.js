@@ -281,12 +281,17 @@ const Result = types
     get emptyStyle() {
       const emptyLabel = self.from_name.emptyLabel;
 
-      if (!emptyLabel) return null;
-      const fillcolor = emptyLabel.background || emptyLabel.parent.fillcolor;
+      if (!emptyLabel) {
+        console.log('[Result.js emptyStyle] No emptyLabel found, returning null');
+        return null;
+      }
 
-      if (!fillcolor) return null;
-      const strokecolor = emptyLabel.background || emptyLabel.parent.strokecolor;
+      // FORCE GRAY COLOR for regions without labels (instead of orange)
+      const fillcolor = "#666666"; // Gray color for empty regions
+      const strokecolor = "#666666"; // Gray color for empty regions
       const { strokewidth, fillopacity, opacity } = emptyLabel.parent;
+
+      console.log('[Result.js emptyStyle] Returning GRAY colors:', { fillcolor, strokecolor, strokewidth });
 
       return { strokecolor, strokewidth, fillcolor, fillopacity, opacity };
     },
@@ -294,7 +299,18 @@ const Result = types
     get controlStyle() {
       if (!self.from_name) return null;
 
-      const { fillcolor, strokecolor, strokewidth, fillopacity, opacity } = self.from_name;
+      let { fillcolor, strokecolor, strokewidth, fillopacity, opacity } = self.from_name;
+
+      console.log('[Result.js controlStyle] Original colors from control:', { fillcolor, strokecolor });
+
+      // If the region has no labels (selectedLabels is empty), use gray instead of orange
+      if (self.labeling && (!self.labeling.selectedLabels || self.labeling.selectedLabels.length === 0)) {
+        console.log('[Result.js controlStyle] No labels selected, FORCING GRAY COLOR');
+        fillcolor = "#666666";
+        strokecolor = "#666666";
+      }
+
+      console.log('[Result.js controlStyle] Final colors:', { fillcolor, strokecolor });
 
       return { strokecolor, strokewidth, fillcolor, fillopacity, opacity };
     },

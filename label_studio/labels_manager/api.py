@@ -17,7 +17,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from webhooks.utils import api_webhook, api_webhook_for_delete
 
-from .functions import bulk_update_label
+from .functions import bulk_delete_label_references, bulk_update_label
 from .models import Label, LabelLink
 
 logger = logging.getLogger(__name__)
@@ -108,6 +108,23 @@ class LabelAPI(viewsets.ModelViewSet):
             return LabelCreateSerializer
 
         return self.serializer_class
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete a label and clean up all annotation references to it"""
+        label = self.get_object()
+        label_value = label.value
+
+        # Clean up all annotations that reference this label
+        deleted_count = bulk_delete_label_references(
+            label_value=label_value,
+            organization=request.user.active_organization,
+            project=None  # Clean up across all projects in the organization
+        )
+
+        logger.info(f'Removed {deleted_count} annotation regions referencing deleted label: {label.title}')
+
+        # Now delete the label (this will cascade delete all LabelLinks)
+        return super().destroy(request, *args, **kwargs)
 
 
 @method_decorator(
@@ -204,6 +221,24 @@ class LabelLinkAPI(viewsets.ModelViewSet):
 
     @api_webhook_for_delete('LABEL_LINK_DELETED')
     def destroy(self, request, *args, **kwargs):
+        """Delete a label link and clean up annotation references in the specific project"""
+        label_link = self.get_object()
+        label_value = label_link.label.value
+        project = label_link.project
+
+        # Clean up all annotations in this project that reference this label
+        deleted_count = bulk_delete_label_references(
+            label_value=label_value,
+            organization=request.user.active_organization,
+            project=project
+        )
+
+        logger.info(
+            f'Removed {deleted_count} annotation regions referencing label "{label_link.label.title}" '
+            f'from project {project.id}'
+        )
+
+        # Now delete the label link
         return super().destroy(request, *args, **kwargs)
 
 

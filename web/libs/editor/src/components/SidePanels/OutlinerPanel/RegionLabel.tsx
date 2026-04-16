@@ -15,7 +15,12 @@ export const RegionLabel = observer(({ item }: RegionLabelProps) => {
   if (type.includes("region") || type.includes("range")) {
     const labelsInResults = item.labelings.map((result: any) => result.selectedLabels || []);
 
-    const labels: any[] = [].concat(...labelsInResults);
+    const allLabels: any[] = [].concat(...labelsInResults);
+
+    // Rimuovi i duplicati basandosi sull'id della label
+    const labels = allLabels.filter((label, index, self) =>
+      index === self.findIndex((l) => l.id === label.id)
+    );
 
     return (
       <Block name="labels-list">

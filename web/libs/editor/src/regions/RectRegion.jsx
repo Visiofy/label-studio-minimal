@@ -186,7 +186,7 @@ const Model = types
     opacity: 1,
 
     fill: true,
-    fillColor: "#ff8800", // Constants.FILL_COLOR,
+    fillColor: "#666666", // Gray color for regions without labels (was #ff8800 orange)
     fillOpacity: 0.2,
 
     strokeColor: Constants.STROKE_COLOR,
@@ -210,6 +210,11 @@ const Model = types
       preferTransformer: true,
       supportsRotate: true,
       supportsScale: true,
+
+      // Flag to track if this is a newly created annotation (just completed drawing)
+      // When true: pressing number keys creates NEW annotation with different label
+      // When false: pressing number keys changes EXISTING annotation's label
+      isNewAnnotation: false,
     };
   })
   .views((self) => ({
@@ -248,6 +253,10 @@ const Model = types
     afterCreate() {
       self.startX = self.x;
       self.startY = self.y;
+    },
+
+    setIsNewAnnotation(value) {
+      self.isNewAnnotation = value;
     },
 
     getDistanceBetweenPoints(pointA, pointB) {

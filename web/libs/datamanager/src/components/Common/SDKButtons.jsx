@@ -23,5 +23,5 @@ export const ImportButton = ({ ...props }) => {
 };
 
 export const ExportButton = ({ ...props }) => {
-  return <SDKButton {...props} eventName="exportClicked" />;
+  return <SDKButton {...props} eventName="exportClicked" className="lsf-export-button" />;
 };

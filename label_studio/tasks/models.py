@@ -1302,7 +1302,15 @@ def update_project_summary_annotations_and_is_labeled(sender, instance, created,
     if instance.was_cancelled:
         instance.task.cancelled_annotations = instance.task.annotations.all().filter(was_cancelled=True).count()
     else:
-        instance.task.total_annotations = instance.task.annotations.all().filter(was_cancelled=False).count()
+        # OLD BEHAVIOR: Count number of annotation submissions
+        # instance.task.total_annotations = instance.task.annotations.all().filter(was_cancelled=False).count()
+
+        # NEW BEHAVIOR: Count total number of results (bounding boxes) across all annotations
+        total_results = 0
+        for annotation in instance.task.annotations.all().filter(was_cancelled=False):
+            if annotation.result and isinstance(annotation.result, list):
+                total_results += len(annotation.result)
+        instance.task.total_annotations = total_results
     instance.task.update_is_labeled()
     instance.task.save(update_fields=['is_labeled', 'total_annotations', 'cancelled_annotations'])
     logger.debug(f'Updated total_annotations and cancelled_annotations for {instance.task.id}.')

@@ -684,12 +684,13 @@ const Model = types
     },
 
     afterRegionSelected(region) {
-      console.log(`[Image] afterRegionSelected called for region:`, {
-        type: region?.type,
-        id: region?.id,
-        control: region?.labeling?.controltagname,
-        fromName: region?.results?.[0]?.from_name?.name
-      });
+
+      if (!region) return;
+
+      if (self._suppressAutoSwitch) {
+        self._suppressAutoSwitch = false;
+        return;
+      }
 
       if (self.multiImage) {
         self.setCurrentImage(region.item_index);
@@ -700,6 +701,22 @@ const Model = types
         const toolsManager = self.getToolsManager();
         if (toolsManager) {
           let targetTool = null;
+
+          // Check if current tool is an editing tool that should not be auto-switched
+          // (e.g., eraser, magic wand - tools that actively modify regions)
+          const currentTool = toolsManager.findSelectedTool();
+          const isEditingTool = currentTool && (
+            currentTool.toolName === 'EraserTool' ||
+            currentTool.fullName?.toLowerCase().includes('eraser') ||
+            currentTool.toolName === 'MagicWandTool' ||
+            currentTool.fullName?.toLowerCase().includes('magicwand')
+          );
+
+          // Don't auto-switch if an editing tool is active
+          if (isEditingTool) {
+            console.log('[Image.afterRegionSelected] Skipping auto-switch - editing tool is active:', currentTool.toolName);
+            return;
+          }
 
           // Map region types to corresponding tools
           switch (region.type) {
@@ -723,15 +740,12 @@ const Model = types
 
           // Switch to the appropriate tool if found and not already selected
           if (targetTool && !targetTool.selected) {
-            console.log(`[Image] Auto-switching to ${targetTool.fullName} for ${region.type}`);
-            console.log(`[Image] Current tool before switch:`, toolsManager.findSelectedTool()?.fullName);
 
             // CRITICAL: Reset current tool state before switching
             // This prevents Rectangle from continuing a drawing started by region click
-            const currentTool = toolsManager.findSelectedTool();
+            // (currentTool is already defined above when checking for editing tools)
             if (currentTool) {
               try {
-                console.log(`[Image] Resetting ${currentTool.fullName} state before switch`);
 
                 // Step 1: Delete any current region being drawn
                 if (currentTool.deleteRegion && typeof currentTool.deleteRegion === 'function') {
@@ -740,7 +754,6 @@ const Model = types
 
                 // Step 2: Force finish any active drawing
                 if (currentTool.isDrawing) {
-                  console.log(`[Image] Tool is actively drawing, forcing finish`);
                   try {
                     // Try to cleanly finish the drawing
                     if (currentTool.finishDrawing && typeof currentTool.finishDrawing === 'function') {
@@ -749,7 +762,6 @@ const Model = types
                       currentTool._resetState();
                     }
                   } catch (finishError) {
-                    console.log(`[Image] Could not finish drawing:`, finishError.message);
                   }
                 }
 
@@ -760,7 +772,6 @@ const Model = types
 
                 // Step 3.5: Call handleToolSwitch to reset TwoPointsDrawingTool volatile variables
                 if (currentTool.handleToolSwitch && typeof currentTool.handleToolSwitch === 'function') {
-                  console.log(`[Image] Calling handleToolSwitch to reset volatile state`);
                   currentTool.handleToolSwitch(null); // Use null since we don't have the new tool yet
                 }
 
@@ -769,25 +780,27 @@ const Model = types
                   currentTool.cleanupUncloseableShape();
                 }
 
-                console.log(`[Image] Tool state reset completed for ${currentTool.fullName}`);
               } catch (e) {
-                console.log(`[Image] Could not reset current tool:`, e.message);
               }
             }
 
             // FORCE complete tool deselection before selecting new tool
             // This should completely reset all tool state
-            console.log(`[Image] Force deselecting all tools before switch`);
             toolsManager.unselectAll();
 
             // Directly select the target tool without timeout to avoid MobX issues
-            console.log(`[Image] Now selecting target tool: ${targetTool.fullName}`);
             try {
               toolsManager.selectTool(targetTool, true);
               const selectedAfter = toolsManager.findSelectedTool();
-              console.log(`[Image] Tool selection result: ${selectedAfter?.fullName || 'none'}`);
             } catch (selectError) {
-              console.log(`[Image] Error selecting tool:`, selectError.message);
+            }
+
+            if (self.annotation?.isDrawing) {
+              try {
+                self.annotation.setIsDrawing(false);
+              } catch (stateError) {
+                console.warn('[Image] Failed to reset drawing state:', stateError);
+              }
             }
 
             // Set a flag to prevent the Rectangle tool from interpreting this as a drawing start
@@ -799,14 +812,85 @@ const Model = types
               self._toolSwitchingInProgress = false;
             }, 100);
 
-            console.log(`[Image] Current tool after switch:`, toolsManager.findSelectedTool()?.fullName);
+            // CRITICAL: Keep clicked region selected after tool switch
+            // Use setTimeout to ensure this happens after all synchronous operations
+            // Set a flag to prevent any deselection attempts for a brief period
+            self._preservingRegionSelection = true;
+            const preservedRegionId = region.id;
+
+            setTimeout(() => {
+              try {
+                // Check if region is still alive in the MobX state tree
+                if (!isAlive(region)) {
+                  self._preservingRegionSelection = false;
+                  return;
+                }
+
+                // Check if self (Image object) is still alive
+                if (!isAlive(self)) {
+                  return;
+                }
+
+                if (region?.annotation && !region.annotation.isDestroyed?.() && isAlive(region.annotation)) {
+
+                  // Save the selected labels before any changes
+                  // Ensure selectedLabels is always an array to avoid "Cannot read 'length' of undefined" errors
+                  const rawSelectedLabels = region.labeling?.selectedLabels;
+                  const selectedLabels = Array.isArray(rawSelectedLabels) ? rawSelectedLabels : [];
+
+                  if (selectedLabels.length > 0) {
+                  } else {
+                  }
+
+                  // Use annotation.selectArea to ensure proper selection state
+                  // This deselects others and selects the clicked region in one atomic operation
+                  if (isAlive(region)) {
+                    region.annotation.selectArea(region);
+                  }
+
+
+                  // Re-select labels for ALL regions during auto-switch (when clicking on region)
+                  // The tool switching bug is prevented by manualLabelChange flag in CustomLabelingMenu
+                  if (selectedLabels.length > 0) {
+
+                    const currentTool = toolsManager.findSelectedTool();
+                    const currentControlType = currentTool?.control?.type;
+
+
+                    selectedLabels.forEach(label => {
+                      if (!label || !isAlive(label)) return;
+
+                      // Only re-select labels that belong to the current tool's control type
+                      const labelControlType = label?.parent?.type;
+
+                      if (labelControlType === currentControlType && label.setSelected && !label.selected) {
+                        label.setSelected(true);
+                      } else if (labelControlType !== currentControlType) {
+                      }
+                    });
+                  } else {
+                  }
+                }
+
+                // Reset the flag after a longer delay to allow any pending events to complete
+                setTimeout(() => {
+                  if (isAlive(self)) {
+                    self._preservingRegionSelection = false;
+                  }
+                }, 200);
+              } catch (deselectError) {
+                console.warn('[Image] Failed to preserve region selection after tool switch:', deselectError);
+                if (isAlive(self)) {
+                  self._preservingRegionSelection = false;
+                }
+              }
+            }, 50); // Small delay to allow tool switch to complete
+
           } else {
-            console.log(`[Image] Tool switch not needed - target:${targetTool?.fullName}, selected:${targetTool?.selected}`);
           }
 
           // Also select the corresponding label(s) if available
           if (region.labeling && region.labeling.selectedLabels && region.labeling.selectedLabels.length > 0) {
-            console.log(`[Image] Auto-selecting labels for region:`, region.labeling.selectedLabels.map(l => l.value));
             // The labels are already selected as part of region selection,
             // the CustomMenu should sync with these automatically
           }

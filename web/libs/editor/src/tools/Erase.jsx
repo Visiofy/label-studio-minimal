@@ -1,5 +1,5 @@
 import { observer } from "mobx-react";
-import { types } from "mobx-state-tree";
+import { types, isAlive } from "mobx-state-tree";
 
 import BaseTool from "./Base";
 import ToolMixin from "../mixins/Tool";
@@ -116,6 +116,48 @@ const _Tool = types
         self.updateCursor();
       },
 
+      /**
+       * Find a brush region at the given coordinates
+       * This allows the eraser to work even when the region is not selected
+       */
+      findBrushRegionAtCoordinates(internalX, internalY, canvasX, canvasY) {
+        try {
+          const regions = self.annotation?.regionStore?.regions;
+          if (!regions || regions.length === 0) return null;
+
+          const pointInBBox = (bbox, px, py) => {
+            if (!bbox) return false;
+            if (!Number.isFinite(px) || !Number.isFinite(py)) return false;
+            return px >= bbox.left && px <= bbox.right && py >= bbox.top && py <= bbox.bottom;
+          };
+
+          // Look for brush regions at the click coordinates
+          for (const region of regions) {
+            if (!region || !isAlive(region)) continue;
+            if (region.type !== "brushregion") continue;
+            if (self.obj.multiImage && region.item_index !== self.obj.currentImage) continue;
+
+            // Check both canvas and internal coordinates for better accuracy
+            const hasCanvasHit = pointInBBox(region.bboxCoordsCanvas, canvasX, canvasY);
+            if (hasCanvasHit) {
+              console.log('[Eraser] Found brush region via canvas bbox at coords:', { region: region.id });
+              return region;
+            }
+
+            const hasInternalHit = pointInBBox(region.bboxCoords, internalX, internalY);
+            if (hasInternalHit) {
+              console.log('[Eraser] Found brush region via internal bbox at coords:', { region: region.id });
+              return region;
+            }
+          }
+
+          return null;
+        } catch (error) {
+          console.warn('[Eraser] Error finding brush region at coordinates:', error);
+          return null;
+        }
+      },
+
       mouseupEv() {
         if (self.mode !== "drawing") return;
         self.mode = "viewing";
@@ -138,7 +180,7 @@ const _Tool = types
         }
       },
 
-      mousedownEv(ev, _, [x, y]) {
+      mousedownEv(ev, [internalX, internalY], [x, y]) {
         if (!self.isAllowedInteraction(ev)) return;
         if (
           !findClosestParent(
@@ -149,10 +191,27 @@ const _Tool = types
         )
           return;
 
-        brush = self.getSelectedShape;
-        if (!brush) return;
+        // First try to find a brush region at the click coordinates
+        // This allows the eraser to work even when the region is not selected
+        brush = self.findBrushRegionAtCoordinates(internalX, internalY, x, y);
+
+        // Fallback to selected shape if no brush region found at coordinates
+        if (!brush) {
+          brush = self.getSelectedShape;
+        }
+
+        if (!brush) {
+          console.log('[Eraser] No brush region found at coordinates or selected');
+          return;
+        }
 
         if (brush && brush.type === "brushregion") {
+          // Select the brush region if it's not already selected
+          // This ensures consistent UI state
+          if (!brush.selected && brush.annotation) {
+            brush.annotation.selectArea(brush);
+          }
+
           self.mode = "drawing";
           brush.beginPath({
             type: "eraser",

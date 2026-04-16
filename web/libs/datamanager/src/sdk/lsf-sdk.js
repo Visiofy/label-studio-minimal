@@ -27,6 +27,7 @@ import { CommentsSdk } from "./comments-sdk";
 // import { LSFHistory } from "./lsf-history";
 import { annotationToServer, taskToLSFormat } from "./lsf-utils";
 import { when } from "mobx";
+import { isAlive } from "mobx-state-tree";
 
 const DEFAULT_INTERFACES = [
   "basic",
@@ -740,6 +741,12 @@ export class LSFWrapper {
   };
 
   onSubmitDraft = async (studio, annotation, params = {}) => {
+    // Check if annotation is still alive before proceeding
+    if (!isAlive(annotation)) {
+      console.warn('[lsf-sdk.onSubmitDraft] Annotation is no longer alive, skipping draft save');
+      return {};
+    }
+
     // It should be preserved as soon as possible because each `await` will allow it to be changed
     const taskId = this.task.id;
     const annotationDoesntExist = !annotation.pk;
@@ -753,6 +760,12 @@ export class LSFWrapper {
     Object.assign(data.body, params);
 
     await this.saveUserLabels();
+
+    // Check again after async operation
+    if (!isAlive(annotation)) {
+      console.warn('[lsf-sdk.onSubmitDraft] Annotation destroyed during saveUserLabels, aborting');
+      return {};
+    }
 
     if (annotation.draftId > 0) {
       // draft has been already created
@@ -772,7 +785,11 @@ export class LSFWrapper {
         data,
       );
     }
-    response?.id && annotation.setDraftId(response?.id);
+    
+    // Check before setting draftId
+    if (isAlive(annotation) && response?.id) {
+      annotation.setDraftId(response?.id);
+    }
     showToast && this.draftToast(response?.$meta?.status);
 
     return response;

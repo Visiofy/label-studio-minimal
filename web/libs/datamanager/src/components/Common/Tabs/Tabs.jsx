@@ -16,11 +16,9 @@ export const Tabs = ({
   children,
   activeTab,
   onChange,
-  onAdd,
   onDragEnd,
   tabBarExtraContent,
   allowedActions,
-  addIcon,
 }) => {
   const [selectedTab, setSelectedTab] = useState(activeTab);
 
@@ -60,9 +58,6 @@ export const Tabs = ({
               )}
             </Droppable>
           </DragDropContext>
-          {allowedActions.add !== false && (
-            <Button className={tabsCN.elem("add").toString()} type="text" onClick={onAdd} icon={addIcon} data-leave />
-          )}
         </span>
         <span className={tabsCN.elem("extra").toString()}>{tabBarExtraContent}</span>
       </div>

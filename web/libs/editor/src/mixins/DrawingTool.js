@@ -202,17 +202,55 @@ const DrawingTool = types
           { coordstype: "px", dynamic: self.dynamic },
         );
 
-        const [main, ...rest] = currentArea.results;
+        // Safety check: ensure results is an array before destructuring
+        const results = Array.isArray(currentArea.results) ? currentArea.results : [];
+        if (results.length === 0) {
+          console.warn('[DrawingTool.commitDrawingRegion] currentArea.results is empty or undefined');
+          return;
+        }
+
+        const [main, ...rest] = results;
         console.log('[DrawingTool.commitDrawingRegion] calling annotation.createResult...');
         const newArea = self.annotation.createResult(value, main.value.toJSON(), control, obj);
         console.log('[DrawingTool.commitDrawingRegion] newArea created:', newArea ? 'success' : 'failed');
 
         //when user is using two different labels tag to draw a region, the other labels will be added to the region
-        rest.forEach((r) => newArea.addResult(r.toJSON()));
+        if (rest.length > 0) {
+          rest.forEach((r) => newArea.addResult(r.toJSON()));
+        }
 
         currentArea.setDrawing(false);
         self.deleteRegion();
         newArea.notifyDrawingFinished();
+
+        // Reset isNewAnnotation flag for ALL other regions before marking the new one
+        if (newArea && newArea.annotation && newArea.annotation.regionStore) {
+          const allRegions = newArea.annotation.regionStore.regions || [];
+          allRegions.forEach(region => {
+            if (region && region.id !== newArea.id && region.isNewAnnotation && region.setIsNewAnnotation) {
+              region.setIsNewAnnotation(false);
+              console.log('[DrawingTool.commitDrawingRegion] Reset isNewAnnotation for region:', region.id);
+            }
+          });
+        }
+
+        // Mark as new annotation so label changes create new regions instead of modifying this one
+        if (newArea && newArea.setIsNewAnnotation) {
+          newArea.setIsNewAnnotation(true);
+          console.log('[DrawingTool.commitDrawingRegion] marked region as new annotation:', newArea.id);
+        }
+
+        // Save draft immediately after region is completed
+        if (self.annotation && self.annotation.saveDraft) {
+          console.log('[DrawingTool.commitDrawingRegion] saving draft after region completion...');
+          try {
+            self.annotation.saveDraft();
+            console.log('[DrawingTool.commitDrawingRegion] draft save triggered');
+          } catch (error) {
+            console.error('[DrawingTool.commitDrawingRegion] error saving draft:', error);
+          }
+        }
+
         console.log('[DrawingTool.commitDrawingRegion] finished, returning newArea');
         return newArea;
       },
@@ -243,7 +281,23 @@ const DrawingTool = types
       },
 
       canStartDrawing() {
-        return !self.isIncorrectControl() && !self.isIncorrectLabel() && self.canStart() && !self.annotation.isDrawing;
+        const incorrectControl = self.isIncorrectControl();
+        const incorrectLabel = self.isIncorrectLabel();
+        const canStart = self.canStart();
+        const isDrawing = self.annotation.isDrawing;
+        const result = !incorrectControl && !incorrectLabel && canStart && !isDrawing;
+
+        if (!result) {
+          console.log('[DrawingTool.canStartDrawing] Checks failed:', {
+            incorrectControl,
+            incorrectLabel,
+            canStart,
+            isDrawing,
+            result
+          });
+        }
+
+        return result;
       },
 
       startDrawing(x, y) {
@@ -383,8 +437,8 @@ const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
         // CRITICAL CHECK: Prevent starting drawing if tool switching is in progress
         const imageObject = self.obj;
         if (imageObject && imageObject._toolSwitchingInProgress) {
-          console.log("[TwoPointsDrawingTool.mousedownEv] Tool switching in progress, ignoring mousedown");
-          return;
+          console.log("[TwoPointsDrawingTool.mousedownEv] Tool switching in progress flag detected, clearing and accepting mousedown");
+          imageObject._toolSwitchingInProgress = false;
         }
 
         // Reset state if we're starting fresh to avoid lingering points from tool switches
@@ -402,17 +456,17 @@ const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
 
       mousemoveEv(_, [x, y]) {
         try {
-          console.log('[TwoPointsDrawingTool.mousemoveEv] currentMode:', self.currentMode, 'startPoint:', self.startPoint, 'coords:', x, y);
+          // console.log('[TwoPointsDrawingTool.mousemoveEv] currentMode:', self.currentMode, 'startPoint:', self.startPoint, 'coords:', x, y);
 
           if (self.currentMode === DEFAULT_MODE && self.startPoint) {
             if (!self.comparePointsWithThreshold(self.startPoint, { x, y })) {
-              console.log('[TwoPointsDrawingTool.mousemoveEv] Threshold exceeded, switching mode from DEFAULT to:', self.modeAfterMouseMove);
+              // console.log('[TwoPointsDrawingTool.mousemoveEv] Threshold exceeded, switching mode from DEFAULT to:', self.modeAfterMouseMove);
               self.currentMode = self.modeAfterMouseMove;
               if ([DRAG_MODE, TWO_CLICKS_MODE].includes(self.currentMode)) {
-                console.log('[TwoPointsDrawingTool.mousemoveEv] Starting drawing at startPoint:', self.startPoint);
+                // console.log('[TwoPointsDrawingTool.mousemoveEv] Starting drawing at startPoint:', self.startPoint);
                 const started = self.startDrawing(self.startPoint.x, self.startPoint.y);
                 if (!started || !safeMobxAccess(() => self.isDrawing, false)) {
-                  console.log('[TwoPointsDrawingTool.mousemoveEv] Failed to start drawing, resetting to DEFAULT_MODE');
+                  // console.log('[TwoPointsDrawingTool.mousemoveEv] Failed to start drawing, resetting to DEFAULT_MODE');
                   self.currentMode = DEFAULT_MODE;
                   return;
                 }
@@ -420,11 +474,11 @@ const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
             }
           }
           if (!safeMobxAccess(() => self.isDrawing, false)) {
-            console.log('[TwoPointsDrawingTool.mousemoveEv] Not drawing, returning');
+            // console.log('[TwoPointsDrawingTool.mousemoveEv] Not drawing, returning');
             return;
           }
           if ([DRAG_MODE, TWO_CLICKS_MODE].includes(self.currentMode)) {
-            console.log('[TwoPointsDrawingTool.mousemoveEv] Updating draw');
+            // console.log('[TwoPointsDrawingTool.mousemoveEv] Updating draw');
             self.updateDraw(x, y);
           }
         } catch (error) {

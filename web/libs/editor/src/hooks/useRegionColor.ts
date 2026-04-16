@@ -47,14 +47,26 @@ export const getRegionStyles = ({
   const fillopacity = style?.fillopacity;
   const opacity = isDefined(fillopacity) ? fillopacity : style?.opacity;
 
+  // Helper function to replace orange colors with gray (for deleted labels)
+  const replaceOrangeWithGray = (color: string | undefined) => {
+    if (!color) return defaultStrokeColor;
+    // Check if color is orange (#ff8800, #ff8, orange, etc.)
+    const normalizedColor = color.toLowerCase().replace(/\s/g, '');
+    if (normalizedColor === '#ff8800' || normalizedColor === '#ff8' ||
+        normalizedColor === 'orange' || normalizedColor === '#ffa500') {
+      return defaultStrokeColor; // Use gray instead
+    }
+    return color;
+  };
+
   const fillColor = shouldFill
-    ? chroma((useStrokeAsFill ? style?.strokecolor : style?.fillcolor) ?? defaultFillColor)
+    ? chroma((useStrokeAsFill ? replaceOrangeWithGray(style?.strokecolor) : replaceOrangeWithGray(style?.fillcolor)) ?? defaultFillColor)
         .darken(0.3)
         .alpha(+(opacity ?? defaultOpacity ?? 0.5))
         .css()
     : null;
 
-  const strokeColor = selected ? defaultStrokeColorHighlighted : chroma(style?.strokecolor ?? defaultStrokeColor).css();
+  const strokeColor = selected ? defaultStrokeColorHighlighted : chroma(replaceOrangeWithGray(style?.strokecolor) ?? defaultStrokeColor).css();
 
   const strokeWidth = (() => {
     if (suggestion) {

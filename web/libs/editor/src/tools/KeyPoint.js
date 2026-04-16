@@ -34,8 +34,18 @@ const _Tool = types
 
       const c = self.control;
 
-      if (c.type === "keypointlabels" && !c.isSelected) return;
+      if (c.type === "keypointlabels" && !c.isSelected) {
+        console.log('[KeyPoint] ❌ No label selected, cannot create region');
+        if (window.showLabelingWarning) {
+          window.showLabelingWarning('Seleziona una label prima di posizionare un keypoint! Usa il menu o premi un tasto numerico (1-9) per selezionare una label.');
+        }
+        return;
+      }
       if (self.annotation.isReadOnly()) return;
+
+      // Se smartEnabled è attivo (SAM), il keypoint deve essere dynamic
+      // così verrà eliminato automaticamente quando la brush suggestion viene accettata
+      const isDynamic = self.dynamic || c.smartEnabled;
 
       const keyPoint = self.createRegion({
         ...self.control?.getSnappedPoint({
@@ -51,8 +61,8 @@ const _Tool = types
               width: Number(c.strokewidth),
               coordstype: "px",
             }),
-        dynamic: self.dynamic,
-        negative: self.dynamic && ev.altKey,
+        dynamic: isDynamic,
+        negative: isDynamic && ev.altKey,
       });
 
       keyPoint.setDrawing(false);

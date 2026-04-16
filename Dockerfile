@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG NODE_VERSION=18
+ARG NODE_VERSION=20
 ARG PYTHON_VERSION=3.12
 ARG POETRY_VERSION=2.1.3
 ARG VERSION_OVERRIDE
@@ -36,7 +36,7 @@ COPY web/yarn.lock .
 COPY web/tools tools
 RUN --mount=type=cache,target=${YARN_CACHE_FOLDER},sharing=locked \
     --mount=type=cache,target=${NX_CACHE_DIRECTORY},sharing=locked \
-    yarn install --prefer-offline --no-progress --pure-lockfile --frozen-lockfile --ignore-engines --non-interactive --production=false
+    yarn install --prefer-offline --no-progress --ignore-engines --non-interactive --production=false
 
 COPY web .
 COPY pyproject.toml ../pyproject.toml

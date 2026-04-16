@@ -2,7 +2,7 @@
  * Libraries
  */
 import React, { Component } from "react";
-import { Result, Spin } from "antd";
+import { Modal, Result, Spin } from "antd";
 import { getEnv, getRoot, isAlive } from "mobx-state-tree";
 import { observer, Provider } from "mobx-react";
 
@@ -87,11 +87,106 @@ import "./App.scss";
  */
 class App extends Component {
   relationsRef = React.createRef();
+  labelingConfigChecked = false; // Flag to check only once
 
   componentDidMount() {
     // Hack to activate app hotkeys
     window.blur();
     document.body.focus();
+
+    // Note: Labeling configuration check is now handled in DataManager
+    // before task is opened, so we don't need to check here
+  }
+
+  componentDidUpdate(prevProps) {
+    // Check when task first becomes available - use safe MobX access
+    try {
+      const prevStore = prevProps?.store;
+      const currentStore = this.props?.store;
+
+      if (!currentStore || !isSafeToUse(currentStore)) {
+        return;
+      }
+
+      const prevTask = prevStore ? safeMobxAccess(() => prevStore.task) : null;
+      const currentTask = safeMobxAccess(() => currentStore.task);
+
+      if (!prevTask && currentTask && !this.labelingConfigChecked) {
+        console.log('[App] Task loaded (labeling check moved to DataManager)');
+        this.labelingConfigChecked = true;
+        // this.checkLabelingConfigurationViaAPI(); // DISABLED - check moved to DataManager
+      }
+    } catch (error) {
+      // Ignore MobX errors during component updates
+      console.warn('[App] Safe error during componentDidUpdate:', error.message?.substring(0, 100));
+    }
+  }
+
+  async checkLabelingConfigurationViaAPI() {
+    try {
+      console.log('[App] Fetching project info via API');
+
+      // Try to get project ID from various sources
+      const projectId = this.props?.store?.task?.project_id
+                     || this.props?.store?.project?.id
+                     || window.location.pathname.match(/\/projects\/(\d+)/)?.[1]
+                     || 1; // fallback to 1
+
+      console.log('[App] Project ID:', projectId);
+
+      // Fetch project info from API
+      const response = await fetch(`/api/projects/${projectId}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        console.error('[App] Failed to fetch project info:', response.status);
+        return;
+      }
+
+      const projectData = await response.json();
+      console.log('[App] Project data received:', projectData);
+      console.log('[App] config_has_control_tags:', projectData.config_has_control_tags);
+
+      // Check if labels are configured
+      if (projectData.config_has_control_tags === false) {
+        console.log('[App] ⚠️ No labels configured - checking if already warned');
+
+        // Check if user already saw the warning this session
+        const warningShownKey = `label_config_warning_shown_${projectId}`;
+        const alreadyShown = sessionStorage.getItem(warningShownKey);
+
+        if (alreadyShown === 'true') {
+          console.log('[App] User already saw warning this session, skipping');
+          return;
+        }
+
+        console.log('[App] Showing warning immediately');
+
+        // Set flag immediately when showing modal (not just on OK)
+        sessionStorage.setItem(warningShownKey, 'true');
+        console.log('[App] Setting sessionStorage flag:', warningShownKey);
+
+        // Show warning immediately (no delay)
+        Modal.confirm({
+          title: "You're almost there!",
+          content: "Before you can annotate the data, set up labeling configuration by adding labels to your dataset metadata.",
+          okText: "Go to Labeling Settings",
+          cancelText: "Cancel",
+          onOk() {
+            const settingsUrl = window.location.origin + '/projects/' + projectId + '/settings/labeling';
+            window.location.href = settingsUrl;
+          },
+        });
+      } else {
+        console.log('[App] ✅ Labels are configured');
+      }
+    } catch (error) {
+      console.error('[App] Error checking labeling configuration via API:', error);
+    }
   }
 
   renderSuccess() {

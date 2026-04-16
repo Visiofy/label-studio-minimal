@@ -826,14 +826,20 @@ const Label = ({ label, template, color, onRemove, controls }) => {
 
   // Funzione per cambiare colore in tutti i controlli che hanno questo label
   const changeColorInAllControls = (newColor) => {
+    console.log('[changeColorInAllControls] Changing color for label:', value, 'to:', newColor);
+    console.log('[changeColorInAllControls] Controls to update:', controls.length);
+
     controls.forEach(control => {
       const labelInControl = Array.from(control.children).find(
         l => l.getAttribute("value") === value
       );
       if (labelInControl) {
+        console.log('[changeColorInAllControls] Updating label in control:', control.tagName);
         template.changeLabel(labelInControl, { background: newColor });
       }
     });
+
+    console.log('[changeColorInAllControls] Color change complete');
   };
 
   return (
@@ -891,13 +897,41 @@ const UnifiedLabelManager = ({ template, controls }) => {
   // Aggiunge label a tutti i controlli compatibili
   const onAddLabels = () => {
     if (!refLabels.current) return;
-    
+
     const labelsToAdd = refLabels.current.value.split('\n').filter(l => l.trim());
-    
+
+    // Prima aggiungi le label (questo genererà colori automatici diversi)
     controls.forEach(control => {
       template.addLabels(control, refLabels.current.value);
     });
-    
+
+    // Poi sincronizza i colori per ogni label appena aggiunta
+    labelsToAdd.forEach(labelValue => {
+      // Prendi il colore dalla prima istanza della label trovata
+      let firstColor = null;
+      for (const control of controls) {
+        const labelInControl = Array.from(control.children).find(
+          l => l.getAttribute("value") === labelValue
+        );
+        if (labelInControl && labelInControl.getAttribute("background")) {
+          firstColor = labelInControl.getAttribute("background");
+          break;
+        }
+      }
+
+      // Se abbiamo trovato un colore, applicalo a tutte le altre istanze
+      if (firstColor) {
+        controls.forEach(control => {
+          const labelInControl = Array.from(control.children).find(
+            l => l.getAttribute("value") === labelValue
+          );
+          if (labelInControl) {
+            template.changeLabel(labelInControl, { background: firstColor });
+          }
+        });
+      }
+    });
+
     refLabels.current.value = "";
   };
 

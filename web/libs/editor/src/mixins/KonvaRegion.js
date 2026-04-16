@@ -134,6 +134,14 @@ export const KonvaRegionMixin = types
       },
 
       onClickRegion(e) {
+        if (e && e.__lsfBrushDelegated && !e.__lsfSynthetic) {
+          // Actual Konva event fired after Brush already delegated this click
+          return;
+        }
+        if (e && e.__lsfRectangleDelegated && !e.__lsfSynthetic) {
+          // Actual Konva event fired after Rectangle already delegated this click
+          return;
+        }
         const annotation = self.annotation;
         const ev = e?.evt || e;
         const additiveMode = ev?.ctrlKey || ev?.metaKey;
@@ -151,6 +159,9 @@ export const KonvaRegionMixin = types
           self._selectArea(additiveMode);
           deferredSelectId = null;
         };
+
+        // Auto-switch is now handled by Image.js afterRegionSelected method
+        // which is triggered by _selectArea() below. This prevents double switching.
 
         if (!annotation.isReadOnly() && annotation.isLinkingMode) {
           annotation.addLinkedRegion(self);

@@ -3,13 +3,8 @@ import { createContext, forwardRef, useCallback, useEffect, useMemo, useRef, use
 import AutoSizer from "react-virtualized-auto-sizer";
 import { VariableSizeList } from "react-window";
 import InfiniteLoader from "react-window-infinite-loader";
-import { useSDK } from "../../../providers/SDKProvider";
 import { isDefined } from "../../../utils/utils";
-import { Button } from "../Button/Button";
-import { Icon } from "../Icon/Icon";
-import { modal } from "../Modal/Modal";
-import { IconCode, IconGear, IconGearNewUI } from "@humansignal/icons";
-import { Tooltip } from "@humansignal/ui";
+import { IconGear, IconGearNewUI } from "@humansignal/icons";
 import "./Table.scss";
 import { TableCheckboxCell } from "./TableCheckbox";
 import { tableCN, TableContext } from "./TableContext";
@@ -18,7 +13,8 @@ import { TableRow } from "./TableRow/TableRow";
 import { prepareColumns } from "./utils";
 import { cn } from "../../../utils/bem";
 import { FieldsButton } from "../FieldsButton";
-import { FF_DEV_3873, FF_LOPS_E_3, isFF } from "../../../utils/feature-flags";
+import { FF_DEV_3873, isFF } from "../../../utils/feature-flags";
+import { useSDK } from "../../../providers/SDKProvider";
 
 const Decorator = (decoration) => {
   return {
@@ -101,55 +97,6 @@ export const Table = observer(
       Cell: rowCheckBoxCell,
     });
 
-    columns.push({
-      id: "show-source",
-      cellClassName: "show-source",
-      style: {
-        width: 40,
-        maxWidth: 40,
-        justifyContent: "center",
-      },
-      onClick: (e) => e.stopPropagation(),
-      Header() {
-        return <div style={{ width: 40 }} />;
-      },
-      Cell({ data }) {
-        let out = JSON.parse(data.source ?? "{}");
-
-        out = {
-          id: out?.id,
-          data: out?.data,
-          annotations: out?.annotations,
-          predictions: out?.predictions,
-        };
-
-        const onTaskLoad = async () => {
-          if (isFF(FF_LOPS_E_3) && type === "DE") {
-            return new Promise((resolve) => resolve(out));
-          }
-          const response = await api.task({ taskID: out.id });
-
-          return response ?? {};
-        };
-
-        return (
-          <Tooltip title="Show task source">
-            <Button
-              type="link"
-              style={{ width: 32, height: 32, padding: 0 }}
-              onClick={() => {
-                modal({
-                  title: `Source for task ${out?.id}`,
-                  style: { width: 800 },
-                  body: <TaskSourceView content={out} onTaskLoad={onTaskLoad} sdkType={type} />,
-                });
-              }}
-              icon={<Icon icon={IconCode} />}
-            />
-          </Tooltip>
-        );
-      },
-    });
 
     if (Object.keys(colOrder).length > 0) {
       columns.sort((a, b) => {
@@ -445,23 +392,3 @@ const innerElementType = forwardRef(({ children, ...rest }, ref) => {
   );
 });
 
-const TaskSourceView = ({ content, onTaskLoad, sdkType }) => {
-  const [source, setSource] = useState(content);
-
-  useEffect(() => {
-    onTaskLoad().then((response) => {
-      const formatted = {
-        id: response.id,
-        data: response.data,
-      };
-
-      if (sdkType !== "DE") {
-        formatted.annotations = response.annotations ?? [];
-        formatted.predictions = response.predictions ?? [];
-      }
-      setSource(formatted);
-    });
-  }, []);
-
-  return <pre>{source ? JSON.stringify(source, null, "  ") : null}</pre>;
-};

@@ -330,6 +330,14 @@ const RegionsMixin = types
           if (wasNotSelected) {
             annotation.selectArea(self);
           } else {
+            // Check if we're in the middle of preserving selection after auto-switch
+            // If so, don't deselect - this prevents the region from being deselected
+            // when residual click events arrive after tool switching
+            const imageObj = self.parent;
+            if (imageObj?._preservingRegionSelection) {
+              console.log('[Regions._selectArea] Blocked deselection during auto-switch preservation');
+              return;
+            }
             annotation.unselectAll();
           }
         }

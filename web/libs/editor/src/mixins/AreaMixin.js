@@ -143,17 +143,50 @@ export const AreaMixinBase = types
       const styled = self.results.find((r) => r.style);
 
       if (styled && styled.style) {
+        // Check if the label still exists (not deleted)
+        // If the label was deleted, the style will still exist in memory but shouldn't be used
+        try {
+          // Try to verify if the label is still valid by checking if it's alive in MST
+          if (styled.labeling) {
+            // If there are no selected labels at all, don't use this style
+            if (!styled.labeling.selectedLabels || styled.labeling.selectedLabels.length === 0) {
+              return void 0; // Will use defaultStyle (gray)
+            }
+
+            // If there are labels, check if they're still alive
+            const hasValidLabel = styled.labeling.selectedLabels.some(label => {
+              try {
+                return label && isAlive(label);
+              } catch (e) {
+                return false;
+              }
+            });
+
+            // If no valid labels, don't use this style (will fall back to defaultStyle)
+            if (!hasValidLabel) {
+              return void 0; // Will use defaultStyle (gray)
+            }
+          }
+        } catch (e) {
+          // If we can't check, continue with the style
+        }
         return styled.style;
       }
       const emptyStyled = self.results.find((r) => r.emptyStyle);
+      const emptyStyleValue = emptyStyled?.emptyStyle;
 
-      if (emptyStyled && emptyStyled.emptyStyle) {
-        return emptyStyled.emptyStyle;
+      if (emptyStyleValue) {
+        return emptyStyleValue;
       }
 
       const controlStyled = self.results.find((r) => self.type.startsWith(r.type));
+      const controlStyleValue = controlStyled?.controlStyle;
 
-      return controlStyled && controlStyled.controlStyle;
+      if (controlStyleValue) {
+        return controlStyleValue;
+      }
+
+      return undefined;
     },
 
     // @todo may be slow, consider to add some code to annotation (un)select* methods

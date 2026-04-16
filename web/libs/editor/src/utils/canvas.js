@@ -140,8 +140,29 @@ function setMaskPixelColors(ctx, data, nw, nh, color, numChannels) {
  */
 function RLE2Region(item, { color = Constants.FILL_COLOR } = {}) {
   const { rle } = item;
-  const nw = item.currentImageEntity.naturalWidth;
-  const nh = item.currentImageEntity.naturalHeight;
+  
+  // CRITICAL FIX: Use parent dimensions instead of currentImageEntity
+  // currentImageEntity can have incorrect dimensions (2x stage instead of natural)
+  // causing RLE to be decoded at wrong resolution
+  const nw = item.parent?.naturalWidth ?? item.currentImageEntity.naturalWidth;
+  const nh = item.parent?.naturalHeight ?? item.currentImageEntity.naturalHeight;
+
+  // DEBUG: Log dimensions used for RLE decoding
+  console.log('[Canvas.RLE2Region] Decoding RLE with dimensions:', {
+    itemId: item.id,
+    naturalWidth: nw,
+    naturalHeight: nh,
+    currentImageEntityDimensions: {
+      width: item.currentImageEntity?.naturalWidth,
+      height: item.currentImageEntity?.naturalHeight
+    },
+    parentDimensions: {
+      width: item.parent?.naturalWidth,
+      height: item.parent?.naturalHeight
+    },
+    stageWidth: item.parent?.stageWidth,
+    stageHeight: item.parent?.stageHeight
+  });
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
@@ -156,19 +177,48 @@ function RLE2Region(item, { color = Constants.FILL_COLOR } = {}) {
 
   const rgb = chroma(color).rgb();
 
+  // Calculate bbox while processing pixels
+  let minX = nw, minY = nh, maxX = 0, maxY = 0;
+  let hasPixels = false;
+
   for (let i = newdata.data.length / 4; i--; ) {
     if (newdata.data[i * 4 + 3]) {
       newdata.data[i * 4] = rgb[0];
       newdata.data[i * 4 + 1] = rgb[1];
       newdata.data[i * 4 + 2] = rgb[2];
+      
+      // Calculate position from index
+      const x = i % nw;
+      const y = Math.floor(i / nw);
+      
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      hasPixels = true;
     }
   }
 
   ctx.putImageData(newdata, 0, 0);
 
   const new_image = new Image();
-
   new_image.src = canvas.toDataURL();
+  
+  // Store bbox in natural image coordinates
+  if (hasPixels) {
+    new_image._rleBbox = {
+      minX,
+      minY,
+      maxX: maxX + 1, // +1 to make it exclusive (width = maxX - minX)
+      maxY: maxY + 1,
+    };
+    console.log('[Canvas.RLE2Region] Calculated bbox from RLE:', {
+      itemId: item.id,
+      bbox: new_image._rleBbox,
+      dimensions: { nw, nh }
+    });
+  }
+  
   return new_image;
 }
 

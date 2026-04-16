@@ -102,12 +102,32 @@ export class Template {
     const existing = [...control.children].map((ch) => ch.getAttribute("value"));
     const isChoices = control.tagName === "Choices";
 
+    // Collect all currently used colors in this control to avoid duplicates
+    const usedColors = new Set(
+      [...control.children]
+        .map((ch) => ch.getAttribute("background"))
+        .filter(Boolean)
+    );
+
     labels.forEach((label) => {
       if (existing.includes(label)) return;
       existing.push(label);
       const $label = this.$root.createElement(isChoices ? "Choice" : "Label");
       $label.setAttribute("value", label);
-      if (!isChoices) $label.setAttribute("background", this.palette.next().value);
+      if (!isChoices) {
+        // Get next color from palette, skipping already used colors
+        let color = this.palette.next().value;
+        let attempts = 0;
+        const maxAttempts = 20; // Avoid infinite loop (we have 11 colors in palette)
+
+        while (usedColors.has(color) && attempts < maxAttempts) {
+          color = this.palette.next().value;
+          attempts++;
+        }
+
+        usedColors.add(color);
+        $label.setAttribute("background", color);
+      }
       control.appendChild($label);
     });
 

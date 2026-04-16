@@ -45,6 +45,7 @@ const SelectionMap = types
   .views((self) => {
     return {
       get keys() {
+        if (!isAlive(self) || !self.selected) return [];
         return Array.from(self.selected.keys());
       },
       get annotation() {
@@ -664,6 +665,20 @@ export default types
     },
 
     clearSelection() {
+      // Reset isNewAnnotation flag for all selected regions before deselecting
+      const selectedRegions = self.selection.highlighted;
+
+      if (selectedRegions) {
+        const regionsToReset = Array.isArray(selectedRegions) ? selectedRegions : [selectedRegions];
+
+        regionsToReset.forEach(region => {
+          if (region && isAlive(region) && region.isNewAnnotation && region.setIsNewAnnotation) {
+            console.log('[RegionStore] Resetting isNewAnnotation flag for region:', region.id);
+            region.setIsNewAnnotation(false);
+          }
+        });
+      }
+
       self.selection.clear();
     },
 
@@ -677,6 +692,15 @@ export default types
     toggleSelection(region, isSelected) {
       if (!isDefined(isSelected)) isSelected = !self.selection.isSelected(region);
       if (isSelected) {
+        // Reset isNewAnnotation flag when RE-selecting a region that was previously deselected
+        // This ensures that when you click on an existing annotation,
+        // you can change its label
+        // Only reset if the region is NOT currently selected (meaning we're re-selecting it)
+        const wasNotSelected = !self.selection.isSelected(region);
+        if (wasNotSelected && region && isAlive(region) && region.isNewAnnotation && region.setIsNewAnnotation) {
+          console.log('[RegionStore.toggleSelection] Resetting isNewAnnotation flag for re-selected region:', region.id);
+          region.setIsNewAnnotation(false);
+        }
         self.selection.select(region);
       } else {
         self.selection.unselect(region);

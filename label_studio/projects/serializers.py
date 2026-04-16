@@ -105,9 +105,46 @@ class ProjectSerializer(FlexFieldsModelSerializer):
         except KeyError:
             return next(iter(self.context['user_cache']))
 
-    @staticmethod
-    def get_config_has_control_tags(project):
-        return len(project.get_parsed_config()) > 0
+    def get_config_has_control_tags(self, project):
+        """
+        Check if the project has control tags with actual labels defined.
+        Returns True only if control tags (BrushLabels, RectangleLabels, etc.) 
+        have at least one Label child element configured.
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Use control_weights to check if labels are actually configured
+            # control_weights is a dict like: {"tag": {"type": "BrushLabels", "labels": {"Class1": 1.0, ...}}, ...}
+            control_weights = project.control_weights
+
+            if not control_weights:
+                logger.warning("[get_config_has_control_tags] No control_weights found")
+                return False
+
+            # Check if any control tag has at least one label configured
+            has_labels = False
+            for tag_name, tag_data in control_weights.items():
+                labels = tag_data.get('labels', {})
+                if labels:  # If labels dict is not empty
+                    has_labels = True
+                    logger.info(f"[get_config_has_control_tags] Tag '{tag_name}' ({tag_data.get('type')}) has {len(labels)} label(s): {list(labels.keys())}")
+                else:
+                    logger.warning(f"[get_config_has_control_tags] Tag '{tag_name}' ({tag_data.get('type')}) has NO labels configured!")
+
+            if has_labels:
+                logger.info(f"[get_config_has_control_tags] ✅ Project has labels configured")
+            else:
+                logger.warning("[get_config_has_control_tags] ⚠️ No labels found in any control tags!")
+
+            return has_labels
+
+        except Exception as e:
+            logger.error(f"[get_config_has_control_tags] Error checking control tags: {e}")
+            # In case of error, assume it's not configured
+            return False
 
     @staticmethod
     def get_config_suitable_for_bulk_annotation(project):

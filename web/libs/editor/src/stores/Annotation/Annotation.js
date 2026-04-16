@@ -417,7 +417,17 @@ const _Annotation = types
     },
 
     sendUserGenerate() {
-      self.sentUserGenerate = true;
+      // Early exit if object is no longer in state tree
+      if (!isAlive(self)) return;
+
+      try {
+        self.sentUserGenerate = true;
+      } catch (e) {
+        // Silently ignore errors when object is no longer in state tree
+        if (!e.message?.includes('no longer part of a state tree')) {
+          console.error('[Annotation] sendUserGenerate error:', e);
+        }
+      }
     },
 
     setLocalUpdate(value) {
@@ -771,8 +781,9 @@ const _Annotation = types
       self.versions.draft = result;
       self.setDraftSaving(true);
       return self.store.submitDraft(self, params).then((res) => {
-        self.onDraftSaved(res);
-
+        if (isAlive(self)) {
+          self.onDraftSaved(res);
+        }
         return res;
       });
     },
@@ -788,6 +799,7 @@ const _Annotation = types
     async saveDraftImmediatelyWithResults(params) {
       // There is no draft to save as it was already saved as an annotation
       if (self.submissionStarted || self.isDraftSaving) return {};
+      if (!isAlive(self)) return {};
       self.setDraftSaving(true);
       const res = await self.saveDraft(params);
 
@@ -805,6 +817,7 @@ const _Annotation = types
     },
 
     setDraftId(id) {
+      if (!isAlive(self)) return;
       self.draftId = id;
     },
 
@@ -813,24 +826,38 @@ const _Annotation = types
     },
 
     onDraftSaved() {
+      if (!isAlive(self)) return;
       self.setDraftSaved(Utils.UDate.currentISODate());
       self.setDraftSaving(false);
     },
 
     dropDraft() {
-      if (!self.autosave) return;
-      self.autosave.cancel();
-      self.draftId = 0;
-      self.draftSelected = false;
-      self.draftSaved = undefined;
-      self.versions.draft = undefined;
+      // Early exit if object is no longer in state tree
+      if (!isAlive(self)) return;
+
+      try {
+        if (!self.autosave) return;
+        self.autosave.cancel();
+        self.draftId = 0;
+        self.draftSelected = false;
+        self.draftSaved = undefined;
+        self.versions.draft = undefined;
+      } catch (e) {
+        // Silently ignore errors when object is no longer in state tree
+        // This can happen when annotation is being replaced/removed
+        if (!e.message?.includes('no longer part of a state tree')) {
+          console.error('[Annotation] dropDraft error:', e);
+        }
+      }
     },
 
     setDraftSaving(saving = false) {
+      if (!isAlive(self)) return;
       self.isDraftSaving = saving;
     },
 
     setDraftSaved(date) {
+      if (!isAlive(self)) return;
       self.draftSaved = date;
     },
 
@@ -935,7 +962,6 @@ const _Annotation = types
     },
 
     createResult(areaValue, resultValue, control, object, skipAfrerCreate = false) {
-      console.log('[Annotation.createResult] start, control:', control?.name, 'object:', object?.name);
       // Without correct validation object may be null, but it it shouldn't be so in results - so we should find any
       if (!object && control.type === "textarea") {
         object = self.objects[0];
@@ -961,18 +987,13 @@ const _Annotation = types
         results: [result],
       };
 
-      console.log('[Annotation.createResult] calling areas.put with areaRaw...');
-      console.log('[Annotation.createResult] current regions count before put:', self.regions?.length);
       // TODO: MST is crashing if we don't validate areas?, this problem isn't
       // happening locally. So to reproduce you have to test in production or environment
       const area = self?.areas?.put(areaRaw);
-      console.log('[Annotation.createResult] areas.put result:', area ? 'success' : 'failed');
-      console.log('[Annotation.createResult] current regions count after put:', self.regions?.length);
 
       objectTag?.afterResultCreated?.(area);
 
       if (!area) {
-        console.log('[Annotation.createResult] no area created, returning null');
         return;
       }
 
@@ -984,7 +1005,6 @@ const _Annotation = types
       if (!area.classification) getEnv(self).events.invoke("entityCreate", area);
       if (!skipAfrerCreate) self.afterCreateResult(area, control);
 
-      console.log('[Annotation.createResult] finished, returning area:', area.id);
       return area;
     },
 
@@ -1109,6 +1129,18 @@ const _Annotation = types
 
           if (!imageEntity || imageEntity.imageLoaded) return;
 
+          // DEBUG: Log dimension updates from predictions
+          console.log('[Annotation] Setting image dimensions from prediction:', {
+            from_name: obj.from_name,
+            to_name: obj.to_name,
+            original_width: obj.original_width,
+            original_height: obj.original_height,
+            currentNaturalWidth: imageEntity.naturalWidth,
+            currentNaturalHeight: imageEntity.naturalHeight,
+            imageLoaded: imageEntity.imageLoaded,
+            type: obj.type
+          });
+
           imageEntity.setNaturalWidth(obj.original_width);
           imageEntity.setNaturalHeight(obj.original_height);
         })();
@@ -1123,6 +1155,19 @@ const _Annotation = types
       self.suggestions.clear();
 
       if (!rawSuggestions) return;
+      
+      // DEBUG: Log SAM suggestions received
+      console.log('[Annotation] setSuggestions - Received SAM predictions:', {
+        suggestionCount: rawSuggestions.length,
+        firstSuggestion: rawSuggestions[0] ? {
+          type: rawSuggestions[0].type,
+          original_width: rawSuggestions[0].original_width,
+          original_height: rawSuggestions[0].original_height,
+          from_name: rawSuggestions[0].from_name,
+          to_name: rawSuggestions[0].to_name
+        } : null
+      });
+      
       self.deserializeResults(rawSuggestions, {
         suggestions: true,
       });
@@ -1349,13 +1394,81 @@ const _Annotation = types
     },
 
     deleteAllDynamicregions(silent = false) {
+      const regionsToDelete = [];
+      const resultsToClean = new Set(); // Track result IDs from dynamic regions
+
       self.regions.forEach((r) => {
         if (r.dynamic) {
-          if (silent) {
-            // dirty hack to prevent sending regionFinishedDrawing notification
-            r.setDrawing(true);
+          regionsToDelete.push(r);
+          // Collect all result IDs from this dynamic region
+          if (r.results) {
+            r.results.forEach((result) => {
+              if (result.id) {
+                resultsToClean.add(result.id);
+              }
+            });
           }
-          r.deleteRegion();
+        }
+      });
+
+      regionsToDelete.forEach((r) => {
+        if (silent) {
+          // dirty hack to prevent sending regionFinishedDrawing notification
+          r.setDrawing(true);
+        }
+        // Force delete bypassing isReadOnly check for dynamic regions
+        try {
+          self.unselectAll(true);
+          self.relationStore.deleteNodeRelation(r);
+          destroy(r);
+        } catch (e) {
+          // Capture id before destroy to avoid mobx-state-tree warning
+          console.error('[Annotation] Error destroying region:', e);
+        }
+      });
+
+      // Clean orphaned results from remaining regions
+      if (resultsToClean.size > 0) {
+        self.regions.forEach((r) => {
+          if (r.results && r.results.length > 0) {
+            const filteredResults = r.results.filter((result) => {
+              return !resultsToClean.has(result.id);
+            });
+
+            if (filteredResults.length < r.results.length) {
+              r.results.replace(filteredResults);
+            }
+          }
+        });
+      }
+
+      // CRITICAL FIX: Remove incompatible results from regions
+      // This prevents results of wrong type (e.g., keypointlabels on brushregion)
+      // from being created after the dynamic regions are deleted
+      self.regions.forEach((r) => {
+        if (r.results && r.results.length > 0) {
+          const compatibleResults = r.results.filter((result) => {
+            const regionType = r.type;
+            const resultType = result.type;
+
+            // Define compatibility rules between region types and result types
+            if (regionType === 'brushregion' && resultType !== 'brushlabels') {
+              return false;
+            }
+            if (regionType === 'keypointregion' && resultType !== 'keypointlabels') {
+              return false;
+            }
+            if (regionType === 'rectangleregion' && resultType !== 'rectanglelabels') {
+              return false;
+            }
+            // Add more compatibility rules as needed
+
+            return true; // Keep compatible results
+          });
+
+          if (compatibleResults.length < r.results.length) {
+            r.results.replace(compatibleResults);
+          }
         }
       });
     },
@@ -1397,18 +1510,36 @@ const _Annotation = types
         }
       }
 
-      self.areas.set(itemId, {
-        ...item.toJSON(),
+      // IMPORTANT: Prepare the area data before removing from suggestions
+      // This prevents duplicate rendering when region exists in both lists
+      const itemJSON = item.toJSON();
+
+      // CRITICAL FIX: When accepting SAM brush suggestions, filter out keypointlabels results
+      // The SAM suggestion includes both the new brush result AND the original keypoint result,
+      // but we only want to keep the brush result since the keypoint will be deleted
+      if (itemJSON.results && Array.isArray(itemJSON.results)) {
+        // Filter out keypointlabels results - they belong to the dynamic keypoint that will be deleted
+        itemJSON.results = itemJSON.results.filter(r => r.type !== 'keypointlabels');
+      }
+
+      const itemData = {
+        ...itemJSON,
         id: itemId,
         fromSuggestion: true,
-      });
+      };
+
+      // Remove from suggestions FIRST to prevent duplicate rendering
+      self.suggestions.delete(id);
+
+      // Then add to areas
+      self.areas.set(itemId, itemData);
+
       const area = self.areas.get(itemId);
       const activeStates = area.object.activeStates();
 
       activeStates.forEach((state) => {
         area.setValue(state);
       });
-      self.suggestions.delete(id);
     },
 
     rejectSuggestion(id) {

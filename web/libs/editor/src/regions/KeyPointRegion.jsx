@@ -97,6 +97,11 @@ const Model = types
       { property: "x", label: "X" },
       { property: "y", label: "Y" },
     ],
+
+    // Flag to track if this is a newly created annotation (just completed drawing)
+    // When true: pressing number keys creates NEW annotation with different label
+    // When false: pressing number keys changes EXISTING annotation's label
+    isNewAnnotation: false,
   }))
   .views((self) => ({
     get store() {
@@ -129,6 +134,10 @@ const Model = types
 
       self.x = point.x;
       self.y = point.y;
+    },
+
+    setIsNewAnnotation(value) {
+      self.isNewAnnotation = value;
     },
 
     updateImageSize() {},

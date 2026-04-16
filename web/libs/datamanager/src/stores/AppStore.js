@@ -348,8 +348,9 @@ export const AppStore = types
       nextAction();
     },
 
-    startLabeling(item, options = {}) {
-      if (!self.confirmLabelingConfigured()) return;
+    async startLabeling(item, options = {}) {
+      const isConfigured = await self.confirmLabelingConfigured();
+      if (!isConfigured) return;
 
       if (self.dataStore.loadingItem) return;
 
@@ -393,15 +394,31 @@ export const AppStore = types
       nextAction();
     },
 
-    confirmLabelingConfigured() {
+    async confirmLabelingConfigured() {
+      // Ensure project data is loaded
+      if (!self.project || !self.project.id) {
+        try {
+          await self.fetchProject({ interaction: 'check_labels' });
+        } catch (error) {
+          console.error('[DataManager] Failed to fetch project:', error);
+          return false;
+        }
+      }
+
       if (!self.labelingIsConfigured) {
         Modal.confirm({
           title: "You're almost there!",
-          body: "Before you can annotate the data, set up labeling configuration",
+          body: "Before you can annotate the data, set up labeling configuration by adding at least one label to your dataset metadata.",
           onOk() {
-            self.SDK.invoke("settingsClicked");
+            const projectId = self.project?.id || 1;
+            const settingsUrl = window.location.origin + '/projects/' + projectId + '/settings/labeling';
+            // Reset sessionStorage flag so modal can appear again if user returns without adding labels
+            const warningShownKey = `label_config_warning_shown_${projectId}`;
+            sessionStorage.removeItem(warningShownKey);
+            window.location.href = settingsUrl;
           },
-          okText: "Go to setup",
+          okText: "Go to Labeling Settings",
+          cancelText: "Cancel",
         });
         return false;
       }
@@ -410,6 +427,12 @@ export const AppStore = types
 
     closeLabeling(options) {
       const { SDK } = self;
+
+      // Reset warning flag when closing labeling (returning to task list)
+      // This allows the warning to show again if user opens another task without adding labels
+      const projectId = self.project?.id || 1;
+      const warningShownKey = `label_config_warning_shown_${projectId}`;
+      sessionStorage.removeItem(warningShownKey);
 
       self.unsetTask(options);
 
@@ -747,20 +770,27 @@ export const AppStore = types
         Object.assign(actionParams, options.body);
       }
 
+      console.log('[invokeAction] Calling action:', actionId, 'with params:', actionParams);
+
       const result = yield self.apiCall("invokeAction", requestParams, {
         body: actionParams,
       });
 
+      console.log('[invokeAction] API result:', result);
+
       if (result.async) {
+        console.log('[invokeAction] Action is async - processing in background');
         self.SDK.invoke("toast", { message: "Your action is being processed in the background.", type: "info" });
       }
 
       if (result.reload) {
+        console.log('[invokeAction] Reloading entire SDK');
         self.SDK.reload();
         return;
       }
 
       if (options.reload !== false) {
+        console.log('[invokeAction] Reloading view and fetching project');
         yield view.reload();
         self.fetchProject();
         view.clearSelection();
@@ -768,6 +798,7 @@ export const AppStore = types
 
       view?.unlock?.();
 
+      console.log('[invokeAction] Action completed');
       return result;
     }),
 

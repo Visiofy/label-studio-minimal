@@ -1,6 +1,6 @@
 /* global LSF_VERSION */
 
-import { destroy, detach, flow, getEnv, getParent, getSnapshot, isRoot, types, walk } from "mobx-state-tree";
+import { destroy, detach, flow, getEnv, getParent, getSnapshot, isAlive, isRoot, types, walk } from "mobx-state-tree";
 
 import uniqBy from "lodash/uniqBy";
 import InfoModal from "../components/Infomodal/Infomodal";
@@ -141,12 +141,12 @@ export default types
     /**
      * Dynamic preannotations
      */
-    _autoAnnotation: false,
+    _autoAnnotation: true,
 
     /**
      * Auto accept suggested annotations
      */
-    _autoAcceptSuggestions: false,
+    _autoAcceptSuggestions: true,
 
     /**
      * Indicator for suggestions awaiting
@@ -192,8 +192,13 @@ export default types
     }
     return {
       ...sn,
-      _autoAnnotation: localStorage.getItem("autoAnnotation") === "true",
-      _autoAcceptSuggestions: localStorage.getItem("autoAcceptSuggestions") === "true",
+      // Default TRUE if not set in localStorage (enables SAM by default)
+      _autoAnnotation: localStorage.getItem("autoAnnotation") !== null
+        ? localStorage.getItem("autoAnnotation") === "true"
+        : true,
+      _autoAcceptSuggestions: localStorage.getItem("autoAcceptSuggestions") !== null
+        ? localStorage.getItem("autoAcceptSuggestions") === "true"
+        : true,
     };
   })
   .volatile(() => ({
@@ -583,6 +588,80 @@ export default types
       self.queuePosition = clamp(self.queuePosition + number, 1, self.queueTotal);
     }
 
+    // Auto-submit dell'annotazione corrente prima di cambiare pagina
+    async function autoSubmitBeforeNavigation() {
+      console.log('[AutoSubmit] autoSubmitBeforeNavigation called');
+
+      const entity = self.annotationStore?.selected;
+      if (!entity) {
+        console.log('[AutoSubmit] No entity selected, skipping');
+        return;
+      }
+
+      try {
+        // Verifica se ci sono modifiche non salvate o nuove annotazioni
+        const hasUnsavedChanges = entity.history?.canUndo;
+        const hasResults = entity.results && entity.results.length > 0;
+        const needsSubmit = hasUnsavedChanges || (hasResults && !entity.sentUserGenerate);
+
+        console.log('[AutoSubmit] Check conditions:', {
+          hasUnsavedChanges,
+          hasResults,
+          resultsCount: entity.results?.length || 0,
+          sentUserGenerate: entity.sentUserGenerate,
+          needsSubmit
+        });
+
+        if (needsSubmit) {
+          console.log('[AutoSubmit] Submitting annotation before navigation...');
+
+          // Prepara l'annotazione per il submit
+          entity.beforeSend();
+
+          // Valida l'annotazione
+          if (!entity.validate()) {
+            console.warn('[AutoSubmit] Validation failed, skipping submit');
+            return;
+          }
+
+          // Determina il tipo di evento (submit o update)
+          const event = entity.exists ? "updateAnnotation" : "submitAnnotation";
+
+          console.log('[AutoSubmit] Event type:', event);
+
+          // Marca come generata dall'utente se non già fatto
+          if (isAlive(entity) && !entity.sentUserGenerate) {
+            entity.sendUserGenerate();
+          }
+
+          // Invia l'annotazione
+          await getEnv(self).events.invoke(event, self, entity);
+
+          // Pulisci il draft dopo il submit
+          if (isAlive(entity)) entity.dropDraft();
+
+          console.log('[AutoSubmit] Annotation submitted successfully');
+        } else {
+          console.log('[AutoSubmit] No submit needed - checking if draft save needed');
+
+          // Anche se non serve un submit completo, salva come draft se ci sono risultati
+          if (hasResults) {
+            console.log('[AutoSubmit] Saving as draft before navigation...');
+            try {
+              await entity.saveDraftImmediatelyWithResults();
+              console.log('[AutoSubmit] Draft saved successfully');
+            } catch (draftError) {
+              console.error('[AutoSubmit] Error saving draft:', draftError);
+            }
+          } else {
+            console.log('[AutoSubmit] No results to save');
+          }
+        }
+      } catch (error) {
+        console.error('[AutoSubmit] Errore durante il submit:', error);
+      }
+    }
+
     function submitAnnotation() {
       if (self.isSubmitting) return;
 
@@ -594,7 +673,7 @@ export default types
       if (!entity.validate()) return;
 
       if (!isFF(FF_CUSTOM_SCRIPT)) {
-        entity.sendUserGenerate();
+        if (isAlive(entity)) entity.sendUserGenerate();
       }
       handleSubmittingFlag(async () => {
         if (isFF(FF_CUSTOM_SCRIPT)) {
@@ -602,16 +681,16 @@ export default types
           const allowedToSave = await getEnv(self).events.invoke("beforeSaveAnnotation", self, entity, { event });
           if (allowedToSave && allowedToSave.some((x) => x === false)) return;
 
-          entity.sendUserGenerate();
+          if (isAlive(entity)) entity.sendUserGenerate();
         }
         await getEnv(self).events.invoke(event, self, entity);
         self.incrementQueuePosition();
         if (isFF(FF_CUSTOM_SCRIPT)) {
-          entity.dropDraft();
+          if (isAlive(entity)) entity.dropDraft();
         }
       });
       if (!isFF(FF_CUSTOM_SCRIPT)) {
-        entity.dropDraft();
+        if (isAlive(entity)) entity.dropDraft();
       }
     }
 
@@ -634,18 +713,26 @@ export default types
         await getEnv(self).events.invoke("updateAnnotation", self, entity, extraData);
         self.incrementQueuePosition();
         if (isFF(FF_CUSTOM_SCRIPT)) {
-          entity.dropDraft();
-          !entity.sentUserGenerate && entity.sendUserGenerate();
+          if (isAlive(entity)) {
+            entity.dropDraft();
+            !entity.sentUserGenerate && entity.sendUserGenerate();
+          }
         }
       });
       if (!isFF(FF_CUSTOM_SCRIPT)) {
-        entity.dropDraft();
-        !entity.sentUserGenerate && entity.sendUserGenerate();
+        if (isAlive(entity)) {
+          entity.dropDraft();
+          !entity.sentUserGenerate && entity.sendUserGenerate();
+        }
       }
     }
 
-    function skipTask(extraData) {
+    async function skipTask(extraData) {
       if (self.isSubmitting) return;
+
+      // Auto-submit prima di saltare il task
+      await autoSubmitBeforeNavigation();
+
       handleSubmittingFlag(() => {
         getEnv(self).events.invoke("skipTask", self, extraData);
         self.incrementQueuePosition();
@@ -676,7 +763,7 @@ export default types
 
         const isDirty = entity.history.canUndo;
 
-        entity.dropDraft();
+        if (isAlive(entity)) entity.dropDraft();
         await getEnv(self).events.invoke("acceptAnnotation", self, { isDirty, entity });
         self.incrementQueuePosition();
       }, "Error during accept, try again");
@@ -699,7 +786,7 @@ export default types
 
         const isDirty = entity.history.canUndo;
 
-        entity.dropDraft();
+        if (isAlive(entity)) entity.dropDraft();
         await getEnv(self).events.invoke("rejectAnnotation", self, { isDirty, entity, comment });
         self.incrementQueuePosition(-1);
       }, "Error during reject, try again");
@@ -720,7 +807,7 @@ export default types
 
         await getEnv(self).events.invoke("customButton", self, buttonName, { isDirty, entity, button });
         self.incrementQueuePosition();
-        entity.dropDraft();
+        if (isAlive(entity)) entity.dropDraft();
       }, `Error during handling ${button} button, try again`);
     }
 
@@ -930,8 +1017,11 @@ export default types
       self.incrementQueuePosition();
     }
 
-    function nextTask() {
+    async function nextTask() {
       if (self.canGoNextTask) {
+        // Auto-submit prima di cambiare pagina
+        await autoSubmitBeforeNavigation();
+
         const { taskId, annotationId } =
           self.taskHistory[self.taskHistory.findIndex((x) => x.taskId === self.task.id) + 1];
 
@@ -940,7 +1030,10 @@ export default types
       }
     }
 
-    function prevTask(_e, shouldGoBack = false) {
+    async function prevTask(_e, shouldGoBack = false) {
+      // Auto-submit prima di cambiare pagina
+      await autoSubmitBeforeNavigation();
+
       const length = shouldGoBack
         ? self.taskHistory.length - 1
         : self.taskHistory.findIndex((x) => x.taskId === self.task.id) - 1;

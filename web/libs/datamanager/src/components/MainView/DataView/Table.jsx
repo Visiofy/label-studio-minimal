@@ -146,12 +146,11 @@ export const DataView = injector(
         } else if (e.metaKey || e.ctrlKey) {
           window.open(`./?task=${itemID}`, "_blank");
         } else {
-          store._sdk.lsf?.saveDraft();
           safeMobxAccess(() => {
             if (isSafeToUse(view)) {
               const root = getRoot(view);
               if (isSafeToUse(root) && root.startLabeling) {
-                safeMobxAccess(() => root.startLabeling(item));
+                root.startLabeling(item);
               }
             }
           });

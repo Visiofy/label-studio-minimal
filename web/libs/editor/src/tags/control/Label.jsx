@@ -333,6 +333,14 @@ const Model = types
 
       applicableRegions.forEach((region) => {
         if (region) {
+          // Se la regione è appena stata creata (isNewAnnotation = true),
+          // non cambiare il label. Questo previene il cambio accidentale del label
+          // quando si preme un tasto numerico subito dopo aver creato l'annotazione.
+          if (region.isNewAnnotation) {
+            console.log('[Label] Skipping label change for newly created region:', region.id);
+            return; // Skip this region
+          }
+
           region.setValue(self.parent);
           region.notifyDrawingFinished();
           region.updateSpans?.();
@@ -365,7 +373,46 @@ const Model = types
     },
 
     _updateBackgroundColor(val) {
-      if (self.background === Constants.LABEL_BACKGROUND) self.background = ColorScheme.make_color({ seed: val })[0];
+      if (self.background === Constants.LABEL_BACKGROUND) {
+        // Raccogli tutti i colori già usati dalle label esistenti nello stesso gruppo
+        const usedColors = new Set();
+        let myIndex = 0;
+
+        if (self.parent && self.parent.children) {
+          self.parent.children.forEach((label, index) => {
+            if (label === self) {
+              myIndex = index;
+            }
+            if (label && label !== self && label.background && label.background !== Constants.LABEL_BACKGROUND) {
+              usedColors.add(label.background.toLowerCase());
+            }
+          });
+        }
+
+        console.log(`[Label] Label "${val}" at index ${myIndex}, existing colors:`, Array.from(usedColors));
+
+        // Strategia: usa l'indice della label come base per il seed
+        // Questo garantisce che label create in momenti diversi abbiano colori diversi
+        let newColor = ColorScheme.make_color({ seed: `${val}_${myIndex}` })[0];
+        let attempt = myIndex;
+        const maxAttempts = 50;
+
+        // Prova con seed diversi fino a trovare un colore libero
+        while (usedColors.has(newColor.toLowerCase()) && attempt < maxAttempts) {
+          attempt++;
+          newColor = ColorScheme.make_color({ seed: `${val}_${attempt}` })[0];
+          console.log(`[Label] Attempt ${attempt}: generated color ${newColor}`);
+        }
+
+        // Se dopo maxAttempts non troviamo un colore libero, usa random
+        if (usedColors.has(newColor.toLowerCase())) {
+          console.log(`[Label] Max attempts reached, using random color`);
+          newColor = ColorScheme.make_color({ seed: `random_${Math.random()}` })[0];
+        }
+
+        console.log(`[Label] Assigning color ${newColor} to label "${val}"`);
+        self.background = newColor;
+      }
     },
 
     afterCreate() {

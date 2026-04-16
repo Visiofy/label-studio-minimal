@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Group, Image, Layer, Shape } from "react-konva";
 import { observer } from "mobx-react";
-import { getParent, getRoot, getType, hasParent, isAlive, types } from "mobx-state-tree";
+import { getParent, getRoot, getType, hasParent, isAlive, observe, types } from "mobx-state-tree";
 
 import Registry from "../core/Registry";
 import NormalizationMixin from "../mixins/Normalization";
@@ -177,6 +177,12 @@ const Model = types
     hideable: true,
     layerRef: undefined,
     imageData: null,
+    rleBbox: null, // Bbox calculated from RLE decoding in natural coordinates
+
+    // Flag to track if this is a newly created annotation (just completed drawing)
+    // When true: pressing number keys creates NEW annotation with different label
+    // When false: pressing number keys changes EXISTING annotation's label
+    isNewAnnotation: false,
   }))
   .views((self) => {
     return {
@@ -185,6 +191,12 @@ const Model = types
       },
       get colorParts() {
         const style = self.style || self.tag || defaultStyle;
+
+        // If style doesn't have a valid strokecolor, use defaultStyle
+        // This handles cases where a label was deleted but regions still reference it
+        if (!style || !style.strokecolor) {
+          return colorToRGBAArray(defaultStyle.strokecolor);
+        }
 
         return colorToRGBAArray(style.strokecolor);
       },
@@ -195,26 +207,135 @@ const Model = types
         return self.touches.length;
       },
       get bboxCoordsCanvas() {
-        if (!self.imageData) {
+        // PRIORITY 1: For touches (manually drawn), calculate accurate bbox from points
+        if (self.touches && self.touches.length > 0) {
           const points = { x: [], y: [] };
 
-          for (let i = 0; i in (self.touches?.[0]?.points ?? []); i += 2) {
-            const curX = (self.touches?.[0]?.points ?? [])[i];
-            const curY = (self.touches?.[0]?.points ?? [])[i + 1];
-
-            points.x.push(curX);
-            points.y.push(curY);
+          // Iterate through ALL touches, not just the first one
+          for (const touch of self.touches) {
+            if (!touch.points) continue;
+            for (let i = 0; i < touch.points.length; i += 2) {
+              const curX = touch.points[i];
+              const curY = touch.points[i + 1];
+              if (Number.isFinite(curX) && Number.isFinite(curY)) {
+                points.x.push(curX);
+                points.y.push(curY);
+              }
+            }
           }
-          return {
-            left: Math.min(...points.x),
-            top: Math.min(...points.y),
-            right: Math.max(...points.x),
-            bottom: Math.max(...points.y),
-          };
+          
+          if (points.x.length > 0) {
+            const bbox = {
+              left: Math.min(...points.x),
+              top: Math.min(...points.y),
+              right: Math.max(...points.x),
+              bottom: Math.max(...points.y),
+            };
+            
+            console.log('[BrushRegion] Using touches bbox (ACCURATE from points):', {
+              id: self.id,
+              bbox,
+              touchesCount: self.touches.length,
+              pointsCount: points.x.length
+            });
+            
+            return bbox;
+          }
         }
+        
+        // PRIORITY 2: Use bbox calculated from RLE decoding (most accurate for SAM predictions)
+        if (self.rleBbox && self.parent) {
+          const { minX, minY, maxX, maxY } = self.rleBbox;
+          
+          // Scale from natural dimensions to stage dimensions
+          const scaleX = self.parent.stageWidth / self.parent.naturalWidth;
+          const scaleY = self.parent.stageHeight / self.parent.naturalHeight;
+          
+          const bbox = {
+            left: minX * scaleX,
+            top: minY * scaleY,
+            right: maxX * scaleX,
+            bottom: maxY * scaleY,
+          };
+          
+          console.log('[BrushRegion] Using RLE bbox (MOST ACCURATE):', {
+            id: self.id,
+            rleBboxNatural: self.rleBbox,
+            bboxStage: bbox,
+            scales: { scaleX, scaleY },
+            dimensions: {
+              natural: { w: self.parent.naturalWidth, h: self.parent.naturalHeight },
+              stage: { w: self.parent.stageWidth, h: self.parent.stageHeight }
+            }
+          });
+          
+          return bbox;
+        }
+        
+        // Fallback to imageData calculation if rleBbox not available
+        if (!self.imageData) return null;
+        
         const imageBBox = Geometry.getImageDataBBox(self.imageData.data, self.imageData.width, self.imageData.height);
 
         if (!imageBBox) return null;
+        
+        // DEBUG: Check if maskBounds are available (from SAM prediction)
+        const hasMaskBounds = typeof self.maskBoundsMinX === 'number' && 
+                             typeof self.maskBoundsMinY === 'number' &&
+                             typeof self.maskBoundsMaxX === 'number' &&
+                             typeof self.maskBoundsMaxY === 'number';
+        
+        console.log('[BrushRegion] Mask bounds check:', {
+          id: self.id,
+          hasMaskBounds,
+          maskBounds: hasMaskBounds ? {
+            minX: self.maskBoundsMinX,
+            minY: self.maskBoundsMinY,
+            maxX: self.maskBoundsMaxX,
+            maxY: self.maskBoundsMaxY
+          } : null
+        });
+        
+        // DEBUG: Count non-transparent pixels
+        let nonZeroPixels = 0;
+        for (let i = 0; i < self.imageData.data.length; i += 4) {
+          if (self.imageData.data[i + 3] > 0) nonZeroPixels++;
+        }
+        const totalPixels = self.imageData.width * self.imageData.height;
+        
+        // CRITICAL FIX: Scale bbox from imageData dimensions to STAGE dimensions
+        // imageData is captured from the rendered canvas (with pixel ratio)
+        // but we need coordinates in stage space (where clicks happen)
+        const scaleX = (self.parent?.stageWidth || self.imageData.width) / self.imageData.width;
+        const scaleY = (self.parent?.stageHeight || self.imageData.height) / self.imageData.height;
+        
+        // DEBUG: Log BEFORE scaling
+        console.log('[BrushRegion] bboxCoordsCanvas BEFORE scaling:', {
+          id: self.id,
+          rawBBox: { ...imageBBox }, // Clone to avoid logging modified object
+          imageDataSize: { width: self.imageData.width, height: self.imageData.height },
+          nonZeroPixels,
+          totalPixels,
+          coverage: `${(nonZeroPixels / totalPixels * 100).toFixed(2)}%`,
+          parentSize: { 
+            naturalWidth: self.parent?.naturalWidth, 
+            naturalHeight: self.parent?.naturalHeight,
+            stageWidth: self.parent?.stageWidth,
+            stageHeight: self.parent?.stageHeight
+          },
+          scaleFactors: { scaleX, scaleY }
+        });
+        
+        imageBBox.x = imageBBox.x * scaleX;
+        imageBBox.y = imageBBox.y * scaleY;
+        imageBBox.width = imageBBox.width * scaleX;
+        imageBBox.height = imageBBox.height * scaleY;
+        
+        console.log('[BrushRegion] bboxCoordsCanvas AFTER scaling to STAGE dimensions:', {
+          id: self.id,
+          scaledBBox: { ...imageBBox }
+        });
+        
         const {
           stageScale: scale = 1,
           zoomingPositionX: offsetX = 0,
@@ -261,6 +382,21 @@ const Model = types
     return {
       afterCreate() {
         self.updateMaskImage();
+        
+        // DEBUG: Log brush region creation with dimensions
+        console.log('[BrushRegion] afterCreate - Region created:', {
+          id: self.id,
+          parentNaturalWidth: self.parent?.naturalWidth,
+          parentNaturalHeight: self.parent?.naturalHeight,
+          parentStageWidth: self.parent?.stageWidth,
+          parentStageHeight: self.parent?.stageHeight,
+          hasMask: !!self.maskDataURL,
+          hasRLE: !!self.rle,
+        });
+      },
+
+      setIsNewAnnotation(value) {
+        self.isNewAnnotation = value;
       },
 
       updateMaskImage() {
@@ -280,6 +416,10 @@ const Model = types
           ref.canvas._canvas.style.opacity = self.opacity;
           self.layerRef = ref;
         }
+      },
+
+      setRleBbox(bbox) {
+        self.rleBbox = bbox;
       },
 
       cacheImageData() {
@@ -531,6 +671,14 @@ const HtxBrushView = ({ item, setShapeRef }) => {
   const [image, setImage] = useState();
   const { suggestion } = useContext(ImageViewContext) ?? {};
 
+  const isItemAlive = isSafeToUse(item);
+  const safeItemAccess = (getter, fallback = null) => {
+    if (!isItemAlive) return fallback;
+    return safeMobxAccess(getter, fallback);
+  };
+
+  const parent = safeItemAccess(() => item.parent, null);
+
   // Prepare brush stroke from RLE with current stroke color
   useEffect(() => {
     // Two possible ways to draw an image from precreated data:
@@ -544,10 +692,26 @@ const HtxBrushView = ({ item, setShapeRef }) => {
       const rle = safeMobxAccess(() => item.rle);
       const maskDataURL = safeMobxAccess(() => item.maskDataURL);
 
-      if (!rle && !maskDataURL) return;
-      if (!safeMobxAccess(() => item.parent) ||
-          safeMobxAccess(() => item.parent.naturalWidth, 0) <= 1 ||
-          safeMobxAccess(() => item.parent.naturalHeight, 0) <= 1) return;
+        if (!isSafeToUse(item)) return;
+
+        if (!rle && !maskDataURL) return;
+        const naturalWidth = safeItemAccess(() => item.parent?.naturalWidth, 0);
+        const naturalHeight = safeItemAccess(() => item.parent?.naturalHeight, 0);
+        
+        // DEBUG: Log image dimensions when preparing RLE/mask
+        console.log('[BrushRegion] prepareImage - Dimensions check:', {
+          id: safeMobxAccess(() => item.id),
+          naturalWidth,
+          naturalHeight,
+          hasRLE: !!rle,
+          hasMaskDataURL: !!maskDataURL,
+          parentStageSize: {
+            width: safeItemAccess(() => item.parent?.stageWidth, 0),
+            height: safeItemAccess(() => item.parent?.stageHeight, 0)
+          }
+        });
+        
+        if (naturalWidth <= 1 || naturalHeight <= 1) return;
 
       let img;
 
@@ -563,27 +727,41 @@ const HtxBrushView = ({ item, setShapeRef }) => {
         img.onload = () => {
           setImage(img);
           if (isSafeToUse(item)) {
+            // Store bbox from RLE if available
+            if (img._rleBbox) {
+              console.log('[BrushRegion] Setting rleBbox from image:', {
+                id: safeMobxAccess(() => item.id),
+                rleBbox: img._rleBbox
+              });
+              safeMobxAccess(() => item.setRleBbox(img._rleBbox));
+            } else {
+              console.log('[BrushRegion] No rleBbox on image:', {
+                id: safeMobxAccess(() => item.id),
+                hasRle: !!rle,
+                hasMaskDataURL: !!maskDataURL
+              });
+            }
             safeMobxAccess(() => item.setReady(true));
           }
         };
       }
     };
 
-    if (isSafeToUse(item)) {
-      prepareImage();
-    }
+    if (!isItemAlive) return;
+    prepareImage();
   }, [
-    safeMobxAccess(() => item.rle),
-    safeMobxAccess(() => item.maskDataURL),
-    safeMobxAccess(() => item.maskBoundsMinX),
-    safeMobxAccess(() => item.maskBoundsMinY),
-    safeMobxAccess(() => item.maskBoundsMaxX),
-    safeMobxAccess(() => item.maskBoundsMaxY),
-    safeMobxAccess(() => item.parent),
-    safeMobxAccess(() => item.parent?.naturalWidth),
-    safeMobxAccess(() => item.parent?.naturalHeight),
-    safeMobxAccess(() => item.strokeColor),
-    safeMobxAccess(() => item.opacity),
+    isItemAlive,
+    safeItemAccess(() => item.rle),
+    safeItemAccess(() => item.maskDataURL),
+    safeItemAccess(() => item.maskBoundsMinX),
+    safeItemAccess(() => item.maskBoundsMinY),
+    safeItemAccess(() => item.maskBoundsMaxX),
+    safeItemAccess(() => item.maskBoundsMaxY),
+    safeItemAccess(() => item.parent),
+    safeItemAccess(() => item.parent?.naturalWidth),
+    safeItemAccess(() => item.parent?.naturalHeight),
+    safeItemAccess(() => item.strokeColor),
+    safeItemAccess(() => item.opacity),
   ]);
 
   // Drawing hit area by shape color to detect interactions inside the Konva
@@ -591,18 +769,21 @@ const HtxBrushView = ({ item, setShapeRef }) => {
     let imageData;
 
     return (context, shape) => {
+      if (!isSafeToUse(item)) return;
+      const stageParent = safeItemAccess(() => item.parent, null);
+      if (!stageParent) return;
       if (image) {
         if (!imageData) {
-          context.drawImage(image, 0, 0, item.parent.stageWidth, item.parent.stageHeight);
+          context.drawImage(image, 0, 0, stageParent.stageWidth, stageParent.stageHeight);
           if (isFF(FF_ZOOM_OPTIM)) {
             imageData = context.getImageData(
-              item.parent.alignmentOffset.x,
-              item.parent.alignmentOffset.y,
-              item.parent.stageWidth,
-              item.parent.stageHeight,
+              stageParent.alignmentOffset.x,
+              stageParent.alignmentOffset.y,
+              stageParent.stageWidth,
+              stageParent.stageHeight,
             );
           } else {
-            imageData = context.getImageData(0, 0, item.parent.stageWidth, item.parent.stageHeight);
+            imageData = context.getImageData(0, 0, stageParent.stageWidth, stageParent.stageHeight);
           }
           const colorParts = colorToRGBAArray(shape.colorKey);
 
@@ -617,7 +798,13 @@ const HtxBrushView = ({ item, setShapeRef }) => {
         context.putImageData(imageData, 0, 0);
       }
     };
-  }, [image, item.parent?.stageWidth, item.parent?.stageHeight]);
+  }, [
+    image,
+    safeItemAccess(() => item.parent?.stageWidth),
+    safeItemAccess(() => item.parent?.stageHeight),
+    safeItemAccess(() => item.parent?.alignmentOffset?.x),
+    safeItemAccess(() => item.parent?.alignmentOffset?.y),
+  ]);
 
   const { store } = item;
 
@@ -625,8 +812,25 @@ const HtxBrushView = ({ item, setShapeRef }) => {
   const layerRef = useRef();
   const highlightedRef = useRef({});
 
-  highlightedRef.current.highlighted = item.highlighted;
-  highlightedRef.current.highlight = highlightedRef.current.highlighted ? highlightOptions : { shadowOpacity: 0 };
+  // Observe highlighted changes to trigger re-render when hovering over region in outliner
+  const [isHighlighted, setIsHighlighted] = useState(item.highlighted);
+
+  useEffect(() => {
+    try {
+      const dispose = observe(item, "highlighted", ({ newValue }) => {
+        setIsHighlighted(newValue);
+      }, true);
+      return () => dispose();
+    } catch (e) {
+      return () => {};
+    }
+  }, [item]);
+
+  // Update ref for drawCallback (used in useMemo)
+  highlightedRef.current.highlighted = isHighlighted;
+
+  // Calculate highlight props from state (not ref) so React re-renders when it changes
+  const highlightStyle = isHighlighted ? highlightOptions : { shadowOpacity: 0 };
 
   // Caching drawn brush strokes (from the rle field and from the touches field) for bounding box calculations and highlight applying
   const drawCallback = useMemo(() => {
@@ -635,7 +839,7 @@ const HtxBrushView = ({ item, setShapeRef }) => {
     return async () => {
       const { highlighted } = highlightedRef.current;
       const layer = layerRef.current;
-      const isDrawing = item.parent?.drawingRegion === item;
+      const isDrawing = safeItemAccess(() => item.parent?.drawingRegion === item, false);
 
       if (isDrawing || !layer || done) return;
       let highlightEl;
@@ -659,17 +863,18 @@ const HtxBrushView = ({ item, setShapeRef }) => {
       done = true;
     };
   }, [
-    safeMobxAccess(() => item.touches?.length, 0),
-    safeMobxAccess(() => item.strokeColor),
-    safeMobxAccess(() => item.parent?.stageScale),
+    safeItemAccess(() => item.touches?.length, 0),
+    safeItemAccess(() => item.strokeColor),
+    safeItemAccess(() => item.parent?.stageScale),
     store.annotationStore.selected?.id,
-    safeMobxAccess(() => item.parent?.zoomingPositionX),
-    safeMobxAccess(() => item.parent?.zoomingPositionY),
-    safeMobxAccess(() => item.parent?.stageWidth),
-    safeMobxAccess(() => item.parent?.stageHeight),
-    safeMobxAccess(() => item.maskDataURL),
-    safeMobxAccess(() => item.rle),
+    safeItemAccess(() => item.parent?.zoomingPositionX),
+    safeItemAccess(() => item.parent?.zoomingPositionY),
+    safeItemAccess(() => item.parent?.stageWidth),
+    safeItemAccess(() => item.parent?.stageHeight),
+    safeItemAccess(() => item.maskDataURL),
+    safeItemAccess(() => item.rle),
     image,
+    isHighlighted, // Re-create callback when highlight changes
   ]);
 
   const setLayerRef = useCallback(
@@ -681,32 +886,32 @@ const HtxBrushView = ({ item, setShapeRef }) => {
     [item],
   );
 
-  if (!item.parent) return null;
+  if (!isItemAlive || !parent) return null;
 
-  const stage = item.parent?.stageRef;
+  const stage = parent?.stageRef;
   const highlightProps = isFF(FF_ZOOM_OPTIM)
     ? {
-        scaleX: 1 / item.parent.zoomScale,
-        scaleY: 1 / item.parent.zoomScale,
-        x: -(item.parent.zoomingPositionX + item.parent.alignmentOffset.x) / item.parent.zoomScale,
-        y: -(item.parent.zoomingPositionY + item.parent.alignmentOffset.y) / item.parent.zoomScale,
+        scaleX: 1 / parent.zoomScale,
+        scaleY: 1 / parent.zoomScale,
+        x: -(parent.zoomingPositionX + parent.alignmentOffset.x) / parent.zoomScale,
+        y: -(parent.zoomingPositionY + parent.alignmentOffset.y) / parent.zoomScale,
         width: item.containerWidth,
         height: item.containerHeight,
       }
     : {
-        scaleX: 1 / item.parent.stageScale,
-        scaleY: 1 / item.parent.stageScale,
-        x: -item.parent.zoomingPositionX / item.parent.stageScale,
-        y: -item.parent.zoomingPositionY / item.parent.stageScale,
-        width: item.parent.canvasSize.width,
-        height: item.parent.canvasSize.height,
+        scaleX: 1 / parent.stageScale,
+        scaleY: 1 / parent.stageScale,
+        x: -parent.zoomingPositionX / parent.stageScale,
+        y: -parent.zoomingPositionY / parent.stageScale,
+        width: parent.canvasSize.width,
+        height: parent.canvasSize.height,
       };
   const clip = isFF(FF_ZOOM_OPTIM)
     ? {
         x: 0,
         y: 0,
-        width: item.parent.stageWidth,
-        height: item.parent.stageHeight,
+        width: parent.stageWidth,
+        height: parent.stageHeight,
       }
     : null;
 
@@ -749,14 +954,14 @@ const HtxBrushView = ({ item, setShapeRef }) => {
             item.updateCursor();
           }}
           onClick={(e) => {
-            if (item.parent.getSkipInteractions()) return;
+            if (parent.getSkipInteractions()) return;
             if (store.annotationStore.selected.isLinkingMode) {
               item.onClickRegion(e);
               return;
             }
 
             if (!isFF(FF_ZOOM_OPTIM)) {
-              const tool = item.parent.getToolsManager().findSelectedTool();
+              const tool = parent.getToolsManager().findSelectedTool();
               const isMoveTool = tool && getType(tool).name === "MoveTool";
 
               if (tool && !isMoveTool) return;
@@ -772,7 +977,7 @@ const HtxBrushView = ({ item, setShapeRef }) => {
           listening={!suggestion}
         >
           {/* RLE */}
-          <Image image={image} hitFunc={imageHitFunc} width={item.parent.stageWidth} height={item.parent.stageHeight} />
+          <Image image={image} hitFunc={imageHitFunc} width={parent.stageWidth} height={parent.stageHeight} />
 
           {/* Touches */}
           <Group>
@@ -783,9 +988,9 @@ const HtxBrushView = ({ item, setShapeRef }) => {
           <Image
             name="highlight"
             image={highlightedImageRef.current}
-            sceneFunc={highlightedRef.current.highlighted ? null : () => {}}
+            sceneFunc={isHighlighted ? null : () => {}}
             hitFunc={() => {}}
-            {...highlightedRef.current.highlight}
+            {...highlightStyle}
             {...highlightProps}
             listening={false}
           />

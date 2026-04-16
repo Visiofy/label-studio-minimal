@@ -24,6 +24,7 @@ import { Dropdown } from "../Dropdown/Dropdown";
 import { Hamburger } from "../Hamburger/Hamburger";
 import { Menu } from "../Menu/Menu";
 import { VersionNotifier, VersionProvider } from "../VersionNotifier/VersionNotifier";
+import { OnboardingTour } from "../OnboardingTour/OnboardingTour";
 import "./Menubar.scss";
 import "./MenuContent.scss";
 import "./MenuSidebar.scss";
@@ -71,50 +72,52 @@ const RightContextMenu = ({ className, ...props }) => {
   }, [projectId]);
 
   const handleExportClick = useCallback((e) => {
-  e.preventDefault();
-  
-  document.body.innerHTML = `
-    <div style="
-      background-color: white; 
-      position: fixed; 
-      top: 0; 
-      left: 0; 
-      width: 100%; 
-      height: 100%; 
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    ">
+    e.preventDefault();
+
+    // Show loading screen
+    document.body.innerHTML = `
       <div style="
-        width: 40px;
-        height: 40px;
-        border: 4px solid #f3f3f3;
-        border-top: 4px solid #3498db;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin-bottom: 20px;
-      "></div>
-      <p style="
-        margin: 0;
-        font-size: 18px;
-        color: #333;
-        
-        font-weight: 500;
-      ">Exporting...</p>
-    </div>
-    <style>
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-    </style>
-  `;
-  
-  window.location.href = exportUrl;
-}, [exportUrl]);
+        background-color: white;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      ">
+        <div style="
+          width: 40px;
+          height: 40px;
+          border: 4px solid #f3f3f3;
+          border-top: 4px solid #3498db;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin-bottom: 20px;
+        "></div>
+        <p style="
+          margin: 0;
+          font-size: 18px;
+          color: #333;
+
+          font-weight: 500;
+        ">Exporting...</p>
+      </div>
+      <style>
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      </style>
+    `;
+
+    // Redirect to export
+    window.location.href = exportUrl;
+  }, [exportUrl]);
   return (
     <div className={className}>
       <div className="lsf-space-ls lsf-space-ls_direction_horizontal lsf-space-ls_size_small">
@@ -150,6 +153,8 @@ const RightContextMenu = ({ className, ...props }) => {
         >
           Export
         </button>
+
+        <OnboardingTour />
       </div>
     </div>
   );

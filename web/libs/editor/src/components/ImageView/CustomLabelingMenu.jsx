@@ -18,6 +18,101 @@ const IconDot = ({ size }) => (
   />
 );
 
+// SVG Icon Components - Native Label Studio Icons
+const IconBrush = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <defs>
+      <linearGradient id="paint0_linear_brush" x1="10.4999" y1="10" x2="28.9999" y2="27" gradientUnits="userSpaceOnUse">
+        <stop stopOpacity="1" stopColor="var(--text-color-hover)" />
+        <stop offset="1" stopOpacity="0.4" stopColor="var(--text-color-hover)" />
+      </linearGradient>
+    </defs>
+    <g opacity="1">
+      <path d="M22.9999 5.5C17.4999 -0.5 5.99989 15.5 3.99989 17.5C1.9999 19.5 4.9999 22.5 6.9999 20.5C8.99989 18.5 17.9444 6.97226 19.9999 8C22.9999 9.5 7.99989 20.5 12.9999 25C17.9999 29.5 24.2259 17.3173 25.9999 18.5C27.7739 19.6827 20.4999 24 23.9999 26.5C26.8821 28.5587 29.4999 24 28.9999 23.5C28.4999 23 26.2499 26.25 25.2499 25.25C23.7499 23.75 31.4999 19.5 27.4999 16.5C23.4999 13.5 16.9999 25 14.9999 23C12.9999 21 27.778 10.7125 22.9999 5.5Z" fill="url(#paint0_linear_brush)" />
+    </g>
+  </svg>
+);
+
+const IconEraser = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 33 33" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <rect x="20.1183" y="3.64455" width="13.354" height="23.2808" rx="2" transform="rotate(45 20.1183 3.64455)" fill="url(#paint0_linear_eraser)" />
+    <rect x="11.0722" y="12.6907" width="13.354" height="1.94005" transform="rotate(45 11.0722 12.6907)" fill="white" />
+    <defs>
+      <linearGradient id="paint0_linear_eraser" x1="26.7953" y1="3.64455" x2="26.7953" y2="26.9253" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#617ADA" />
+        <stop offset="0.572917" stopColor="#617ADA" />
+        <stop offset="0.625" stopColor="#FF2A2A" />
+        <stop offset="1" stopColor="#FF2A2A" />
+      </linearGradient>
+    </defs>
+  </svg>
+);
+
+const IconRectangle = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <path opacity="0.4" d="M5 7H21C23.8284 7 25.2426 7 26.1213 7.87868C27 8.75736 27 10.1716 27 13V25H11C8.17157 25 6.75736 25 5.87868 24.1213C5 23.2426 5 21.8284 5 19V7Z" fill="currentColor" />
+    <g filter="url(#filter0_d_rectangle)">
+      <path d="M28 23.5C28 22.1193 26.8807 21 25.5 21C24.1193 21 23 22.1193 23 23.5C23 24.8807 24.1193 26 25.5 26C26.8807 26 28 24.8807 28 23.5Z" fill="currentColor" />
+      <path d="M9 8.5C9 7.11929 7.88071 6 6.5 6C5.11929 6 4 7.11929 4 8.5C4 9.88071 5.11929 11 6.5 11C7.88071 11 9 9.88071 9 8.5Z" fill="currentColor" />
+    </g>
+    <defs>
+      <filter id="filter0_d_rectangle" x="1" y="4" width="30" height="26" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="1" />
+        <feGaussianBlur stdDeviation="1.5" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_rectangle" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_rectangle" result="shape" />
+      </filter>
+    </defs>
+  </svg>
+);
+
+const IconKeypoint = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <path opacity="0.4" fillRule="evenodd" clipRule="evenodd" d="M21 3.5C17.9624 3.5 15.5 5.96243 15.5 9C15.5 12.0376 17.9624 14.5 21 14.5C24.0376 14.5 26.5 12.0376 26.5 9C26.5 5.96243 24.0376 3.5 21 3.5ZM3.5 16C3.5 12.9624 5.96243 10.5 9 10.5C12.0376 10.5 14.5 12.9624 14.5 16C14.5 19.0376 12.0376 21.5 9 21.5C5.96243 21.5 3.5 19.0376 3.5 16ZM15.5 23C15.5 19.9624 17.9624 17.5 21 17.5C24.0376 17.5 26.5 19.9624 26.5 23C26.5 26.0376 24.0376 28.5 21 28.5C17.9624 28.5 15.5 26.0376 15.5 23Z" fill="currentColor" />
+    <g filter="url(#filter0_d_keypoint)">
+      <path fillRule="evenodd" clipRule="evenodd" d="M21 6.5C19.6193 6.5 18.5 7.61929 18.5 9C18.5 10.3807 19.6193 11.5 21 11.5C22.3807 11.5 23.5 10.3807 23.5 9C23.5 7.61929 22.3807 6.5 21 6.5ZM6.5 16C6.5 14.6193 7.61929 13.5 9 13.5C10.3807 13.5 11.5 14.6193 11.5 16C11.5 17.3807 10.3807 18.5 9 18.5C7.61929 18.5 6.5 17.3807 6.5 16ZM18.5 23C18.5 21.6193 19.6193 20.5 21 20.5C22.3807 20.5 23.5 21.6193 23.5 23C23.5 24.3807 22.3807 25.5 21 25.5C19.6193 25.5 18.5 24.3807 18.5 23Z" fill="currentColor" />
+    </g>
+    <defs>
+      <filter id="filter0_d_keypoint" x="3.5" y="4.5" width="23" height="25" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="1" />
+        <feGaussianBlur stdDeviation="1.5" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_keypoint" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_keypoint" result="shape" />
+      </filter>
+    </defs>
+  </svg>
+);
+
+const IconWarning = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <path d="M12 2L2 20H22L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="currentColor" fillOpacity="0.2"/>
+    <path d="M12 9V13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    <circle cx="12" cy="17" r="1" fill="currentColor"/>
+  </svg>
+);
+
+const IconStats = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <rect x="3" y="12" width="4" height="9" rx="1" fill="currentColor" opacity="0.8"/>
+    <rect x="10" y="8" width="4" height="13" rx="1" fill="currentColor" opacity="0.8"/>
+    <rect x="17" y="3" width="4" height="18" rx="1" fill="currentColor" opacity="0.8"/>
+  </svg>
+);
+
+const IconRotation = ({ size = 12 }) => (
+  <svg width={size} height={size} viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <path d="M2 2H3V10H2V2Z" fill="currentColor" />
+    <path d="M2 9H10V10H2V9Z" fill="currentColor" />
+    <path fillRule="evenodd" clipRule="evenodd" d="M6.97254 10C6.99068 9.83583 7 9.669 7 9.5C7 7.01472 4.98528 5 2.5 5C2.331 5 2.16417 5.00932 2 5.02746V6.03544C2.1633 6.01209 2.33024 6 2.5 6C4.433 6 6 7.567 6 9.5C6 9.66976 5.98791 9.8367 5.96456 10H6.97254Z" fill="currentColor" />
+  </svg>
+);
+
 export default observer(
   class CustomLabelingMenu extends Component {
     constructor(props) {
@@ -29,10 +124,15 @@ export default observer(
       this.state = {
         pendingLabel: savedPrefs.lastLabel,
         pendingTool: savedPrefs.lastTool,
+        warningMessage: null,
+        showWarning: false,
+        isInitializing: true, // Flag per nascondere avvisi durante l'inizializzazione
       };
       this._isMounted = false;
       this.lastMenuInteraction = null;
       this.allowingAutomaticChange = false;
+      this.manualLabelChange = false; // Flag to prevent sync override during manual label changes
+      this.deselectedRegionIds = new Set(); // Track regions that have been deselected (no longer "new")
     }
 
     componentDidMount() {
@@ -41,6 +141,8 @@ export default observer(
       // COMPLETELY override Label Studio hotkeys to route through our menu
       this.setupCustomHotkeys();
 
+      // Expose global warning function for tools to use
+      window.showLabelingWarning = this.showWarning;
 
       // Log current project configuration
       this.logProjectConfiguration();
@@ -50,6 +152,13 @@ export default observer(
 
       // Applica le preferenze salvate se esistono
       this.applyLoadedPreferences();
+
+      // Check initial selection and show warning if needed
+      setTimeout(() => {
+        if (this._isMounted) {
+          this.updateSelectionWarning();
+        }
+      }, 100); // After preferences are applied (50ms + margine)
 
       // REMOVED: DOM-based region click detection - too invasive
     }
@@ -91,6 +200,101 @@ export default observer(
       }
     };
 
+    // Mostra un avviso visuale sotto il menu
+    // autohide: se true, l'avviso si nasconde automaticamente dopo 4 secondi
+    showWarning = (message, autohide = true) => {
+      if (!this._isMounted) return;
+
+      this.setState({
+        warningMessage: message,
+        showWarning: true
+      });
+
+      // Nascondi automaticamente dopo 4 secondi solo se autohide è true
+      if (autohide) {
+        if (this.warningTimeout) {
+          clearTimeout(this.warningTimeout);
+        }
+        this.warningTimeout = setTimeout(() => {
+          this.hideWarning();
+        }, 4000);
+      }
+    };
+
+    // Nascondi l'avviso
+    hideWarning = () => {
+      if (!this._isMounted) return;
+
+      this.setState({
+        showWarning: false
+      });
+
+      // Pulisci il messaggio dopo l'animazione
+      setTimeout(() => {
+        if (this._isMounted) {
+          this.setState({ warningMessage: null });
+        }
+      }, 300);
+    };
+
+    // Controlla lo stato della selezione e mostra/nascondi l'avviso appropriato
+    updateSelectionWarning = () => {
+      if (!this._isMounted) return;
+
+      // Non mostrare avvisi durante l'inizializzazione
+      if (this.state.isInitializing) {
+        return;
+      }
+
+      // Non mostrare avvisi se c'è un'annotazione selezionata
+      // (le statistiche gestiranno il caso di annotazione senza label)
+      const stats = this.getSelectedRegionStats();
+      if (stats) {
+        if (this.state.showWarning) {
+          this.hideWarning();
+        }
+        return;
+      }
+
+      const { pendingTool, pendingLabel } = this.state;
+      const hasTool = Boolean(pendingTool);
+      const hasLabel = Boolean(pendingLabel);
+
+      // Determina il messaggio in base a cosa manca
+      let message = null;
+
+      if (!hasTool && !hasLabel) {
+        message = 'Seleziona un tool e una label per iniziare. Usa i pulsanti del menu o le scorciatoie da tastiera (B/R/K/E per i tool, 1-9 per le label).';
+      } else if (!hasTool && hasLabel) {
+        message = 'Seleziona un tool per disegnare. Premi B (Brush), R (Rectangle), K (Keypoint) o E (Eraser).';
+      } else if (hasTool && !hasLabel && pendingTool !== 'Eraser') {
+        // Eraser non ha bisogno di una label
+        message = 'Seleziona una label prima di disegnare! Premi un tasto numerico (1-9) oppure clicca direttamente sul menu per selezionare una label.';
+      }
+
+      // Mostra o nascondi l'avviso
+      if (message) {
+        // Solo aggiorna se il messaggio è diverso per evitare loop di aggiornamento
+        if (this.state.warningMessage !== message || !this.state.showWarning) {
+          // Cancella il timeout automatico se presente, vogliamo che l'avviso rimanga
+          if (this.warningTimeout) {
+            clearTimeout(this.warningTimeout);
+            this.warningTimeout = null;
+          }
+
+          this.setState({
+            warningMessage: message,
+            showWarning: true
+          });
+        }
+      } else {
+        // Tutto selezionato correttamente, nascondi l'avviso
+        if (this.state.showWarning) {
+          this.hideWarning();
+        }
+      }
+    };
+
     // Applica le preferenze caricate al mount del componente
     applyLoadedPreferences = () => {
       const { pendingTool, pendingLabel } = this.state;
@@ -99,20 +303,31 @@ export default observer(
       if (pendingTool && pendingLabel) {
 
 
-        // Applica con un piccolo delay per dare tempo al sistema di inizializzarsi
+        // Applica con un delay minimo per dare tempo al sistema di inizializzarsi
         setTimeout(() => {
           if (this._isMounted) {
             this.applyToolLabelCombination(pendingTool, pendingLabel);
+            // Termina l'inizializzazione dopo aver applicato le preferenze
+            this.setState({ isInitializing: false });
           }
-        }, 500);
+        }, 50); // Ridotto da 500ms a 50ms
       } else if (pendingTool) {
         // Solo il tool è salvato
 
         setTimeout(() => {
           if (this._isMounted) {
             this.activateToolOnly(pendingTool);
+            // Termina l'inizializzazione dopo aver applicato le preferenze
+            this.setState({ isInitializing: false });
           }
-        }, 500);
+        }, 50); // Ridotto da 500ms a 50ms
+      } else {
+        // Nessuna preferenza salvata, termina subito l'inizializzazione
+        setTimeout(() => {
+          if (this._isMounted) {
+            this.setState({ isInitializing: false });
+          }
+        }, 50); // Ridotto da 500ms a 50ms
       }
     };
 
@@ -142,6 +357,19 @@ export default observer(
 
       this.directKeyHandler = (event) => {
         if (!this._isMounted) return;
+
+        // Don't intercept keys if user is typing in an input field
+        const activeElement = document.activeElement;
+        const isTyping = activeElement && (
+          activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          activeElement.isContentEditable ||
+          activeElement.classList.contains('editable')
+        );
+
+        if (isTyping) {
+          return; // Let the key go through normally
+        }
 
         const key = event.key.toLowerCase();
         const isOurKey = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'b', 'r', 'k', 'e'].includes(key);
@@ -357,6 +585,24 @@ export default observer(
     componentWillUnmount() {
       this._isMounted = false;
 
+      // Clean up warning function
+      if (window.showLabelingWarning === this.showWarning) {
+        window.showLabelingWarning = null;
+      }
+
+      // Clean up warning timeouts
+      if (this.warningTimeout) {
+        clearTimeout(this.warningTimeout);
+        this.warningTimeout = null;
+      }
+      if (this.warningUpdateTimeout) {
+        clearTimeout(this.warningUpdateTimeout);
+        this.warningUpdateTimeout = null;
+      }
+      if (this.syncTimeout) {
+        clearTimeout(this.syncTimeout);
+        this.syncTimeout = null;
+      }
 
       // Remove direct document event handler
       if (this.directKeyHandler) {
@@ -398,8 +644,22 @@ export default observer(
     }
 
     componentDidUpdate() {
-      // Only sync when there are actual changes, no forcing
-      this.syncWithLabelStudio();
+      // Debounce sync to prevent flicker when rapidly switching between regions
+      if (this.syncTimeout) {
+        clearTimeout(this.syncTimeout);
+      }
+      this.syncTimeout = setTimeout(() => {
+        this.syncWithLabelStudio();
+      }, 50); // Wait 50ms for selections to stabilize
+
+      // Check and update warning based on current selection (with debounce)
+      // Debounce per evitare che l'avviso appaia durante cicli rapidi di selezione/deselezione
+      if (this.warningUpdateTimeout) {
+        clearTimeout(this.warningUpdateTimeout);
+      }
+      this.warningUpdateTimeout = setTimeout(() => {
+        this.updateSelectionWarning();
+      }, 500); // Attendi 500ms prima di aggiornare l'avviso (aumentato per dare tempo ai labels)
     }
 
     // Set up direct DOM event detection for region clicks
@@ -456,7 +716,10 @@ export default observer(
               this.setState({
                 pendingTool: regionType
               }, () => {
-                this.applyToolLabelCombination(regionType, this.state.pendingLabel || 'Unknown');
+                // ✅ Non usa più 'Unknown' come fallback
+                if (this.state.pendingLabel) {
+                  this.applyToolLabelCombination(regionType, this.state.pendingLabel);
+                }
               });
             }
           }, 100); // Small delay to let other handlers process
@@ -626,7 +889,33 @@ export default observer(
       // Early return if component is unmounted
       if (!this._isMounted) return;
 
+      // Skip sync if we're in the middle of a manual label change
+      if (this.manualLabelChange) {
+        return;
+      }
+
       const { item } = this.props;
+
+      // Track regions that have been deselected (no longer "new")
+      try {
+        if (item && isAlive(item)) {
+          const annotation = item?.annotation;
+          if (annotation && isAlive(annotation) && annotation.regionStore) {
+            const currentlySelected = new Set((annotation.selectedRegions || []).map(r => r?.id).filter(Boolean));
+
+            // Track all regions that were marked as new but are no longer selected
+            annotation.regionStore.regions?.forEach(region => {
+              if (region && isAlive(region) && region.isNewAnnotation && !currentlySelected.has(region.id)) {
+                if (!this.deselectedRegionIds.has(region.id)) {
+                  this.deselectedRegionIds.add(region.id);
+                }
+              }
+            });
+          }
+        }
+      } catch (trackError) {
+        // Ignore errors in tracking
+      }
 
       // Check if objects are still alive in MST
       if (!item || !isAlive(item)) {
@@ -642,6 +931,7 @@ export default observer(
         }
 
         const selectedTool = toolsManager.findSelectedTool();
+        const annotation = item?.annotation;
 
         // Get current tool - be more precise in mapping
         let currentTool = null;
@@ -656,29 +946,82 @@ export default observer(
         // DIRECT APPROACH: If Label Studio changed tool, trust that change
         // The issue is that selectedRegions isn't reliable, but tool changes are
         const effectiveTool = currentTool;
+        let effectiveLabel = null;
 
-        // Check for currently selected labels across all label controls with better safety
+        // Check if there's a selected region and if it has labels
         if (annotation && isAlive(annotation)) {
-          try {
-            // Additional check to make sure annotation is still valid
-            if (annotation.root && isAlive(annotation.root) && Array.isArray(annotation.root.children)) {
-              for (const control of annotation.root.children) {
-                if (control && isAlive(control) && control?.type?.includes('labels')) {
-                  // Double-check children array is still valid
-                  if (Array.isArray(control.children)) {
-                    const selectedLabels = control.children.filter(label =>
-                      label && isAlive(label) && label.selected
-                    );
-                    if (selectedLabels.length > 0 && selectedLabels[0]?.value) {
-                      effectiveLabel = selectedLabels[0].value;
-                      break;
+          const selectedRegions = annotation.selectedRegions || [];
+
+          if (selectedRegions.length > 0) {
+            const region = selectedRegions[0];
+
+            // Skip label sync ONLY for newly created regions that don't have labels yet
+            // Once a new region has labels OR has been deselected, we should sync normally
+            const hasAnyLabels = region.labelings?.[0]?.selectedLabels?.length > 0 ||
+                                 region.labelings?.[0]?.mainValue ||
+                                 region.labels?.length > 0;
+
+            const isActuallyNew = region.isNewAnnotation && !this.deselectedRegionIds.has(region.id);
+
+            if (isActuallyNew && !hasAnyLabels) {
+              // Don't change effectiveLabel, keep current state
+              effectiveLabel = this.state.pendingLabel;
+            } else {
+              // Check if the region has labels assigned
+              // Try multiple possible locations where labels might be stored
+              let regionLabels = null;
+
+              // Approach 1: Check selectedValues (for some region types)
+              if (region.labelings?.[0]?.selectedValues?.length > 0) {
+                regionLabels = region.labelings[0].selectedValues;
+              }
+              // Approach 2: Check selectedLabels (returns LabelModel objects - extract value field)
+              else if (region.labelings?.[0]?.selectedLabels?.length > 0) {
+                const selectedLabels = region.labelings[0].selectedLabels;
+                // Extract 'value' field from LabelModel objects
+                regionLabels = selectedLabels.map(label => label?.value || label).filter(Boolean);
+              }
+              // Approach 3: Check direct labels property
+              else if (region.labels?.length > 0) {
+                regionLabels = region.labels;
+              }
+              // Approach 4: Check mainValue
+              else if (region.labelings?.[0]?.mainValue) {
+                const mainValue = region.labelings[0].mainValue;
+                regionLabels = Array.isArray(mainValue) ? mainValue : [mainValue];
+              }
+
+              if (regionLabels && regionLabels.length > 0) {
+                // Region has labels - get the first one
+                effectiveLabel = regionLabels[0];
+              } else {
+                // Region has NO labels - deselect all
+                // NOTE: We only reach here for OLD regions (isNewAnnotation is handled above)
+                // So if an old region has no labels, we should deselect everything
+                effectiveLabel = null;
+              }
+            }
+          } else {
+            // No region selected - check for currently selected labels in controls
+            try {
+              if (annotation.root && isAlive(annotation.root) && Array.isArray(annotation.root.children)) {
+                for (const control of annotation.root.children) {
+                  if (control && isAlive(control) && control?.type?.includes('labels')) {
+                    if (Array.isArray(control.children)) {
+                      const selectedLabels = control.children.filter(label =>
+                        label && isAlive(label) && label.selected
+                      );
+                      if (selectedLabels.length > 0 && selectedLabels[0]?.value) {
+                        effectiveLabel = selectedLabels[0].value;
+                        break;
+                      }
                     }
                   }
                 }
               }
-            }
-          } catch (annotationError) {
+            } catch (annotationError) {
 
+            }
           }
         }
 
@@ -961,6 +1304,16 @@ export default observer(
       return mapping[toolName] || toolName.toLowerCase() + 'labels';
     };
 
+    // Helper to map region type to tool name
+    mapRegionTypeToToolName = (regionType) => {
+      const mapping = {
+        'brushregion': 'Brush',
+        'rectangleregion': 'Rectangle',
+        'keypointregion': 'Keypoint'
+      };
+      return mapping[regionType] || 'Rectangle';
+    };
+
     // Select label after tool is activated
     selectLabelAfterToolActivation = (toolName, labelValue) => {
       try {
@@ -1008,8 +1361,84 @@ export default observer(
 
     // Handle label selection
     handleLabelClick = (labelValue) => {
-
       this.lastMenuInteraction = Date.now();
+
+      // FIRST: Check if there are selected regions and apply label to them
+      const { item } = this.props;
+      if (item && isAlive(item)) {
+        const annotation = item?.annotation;
+        if (annotation && isAlive(annotation)) {
+          const selectedRegions = annotation.selectedRegions || [];
+
+          if (selectedRegions.length > 0) {
+
+            // Apply label change to each selected region (respecting isNewAnnotation flag)
+            let labelChanged = false;
+            selectedRegions.forEach(region => {
+              if (region && isAlive(region) && !region.isReadOnly()) {
+                // Skip if this is a newly created annotation that hasn't been deselected yet
+                // (once deselected, it's no longer "new" and can be edited)
+                const isActuallyNew = region.isNewAnnotation && !this.deselectedRegionIds.has(region.id);
+                if (isActuallyNew) {
+                  return;
+                }
+
+                // Find the appropriate control for this region type
+                const toolName = this.mapRegionTypeToToolName(region.type);
+                const control = this.findControlByToolType(toolName);
+                if (control && isAlive(control) && Array.isArray(control.children)) {
+                  // Find the label object with the specified value
+                  const labelObj = control.children.find(label =>
+                    label && isAlive(label) && label.value === labelValue
+                  );
+
+                  if (labelObj && isAlive(labelObj)) {
+
+                    // First, unselect all labels in this control
+                    control.children.forEach(label => {
+                      if (label && isAlive(label) && label.selected && label.setSelected) {
+                        label.setSelected(false);
+                      }
+                    });
+
+                    // Then select the new label
+                    if (labelObj.setSelected) {
+                      labelObj.setSelected(true);
+                    }
+
+                    // Apply the label change to the region
+                    region.setValue(control);
+                    region.notifyDrawingFinished();
+                    region.updateSpans?.();
+                    labelChanged = true;
+                  }
+                }
+              }
+            });
+
+            // Always update the UI state when there are selected regions
+            // This ensures the menu shows the correct label even if we skipped changing new regions
+            // Set flag to prevent syncWithLabelStudio from overriding our change
+            this.manualLabelChange = true;
+
+            this.setState({ pendingLabel: labelValue });
+            this.savePreferences(this.state.pendingTool, labelValue);
+
+            // Clear the flag after a short delay to allow sync to resume
+            setTimeout(() => {
+              this.manualLabelChange = false;
+            }, 300);
+
+            // IMPORTANT: If we skipped all regions (labelChanged = false), we still need to
+            // apply the label to Label Studio so new annotations use the correct label
+            if (!labelChanged && this.state.pendingTool) {
+              this.applyToolLabelCombination(this.state.pendingTool, labelValue);
+            }
+
+            return; // Don't proceed to tool/label combination logic
+          }
+        }
+      }
 
       // If we already have a tool selected, apply immediately
       if (this.state.pendingTool) {
@@ -1194,6 +1623,51 @@ export default observer(
     // Handle ESC key to clear menu selections
     handleEscapeKey = () => {
 
+      try {
+        const { item } = this.props;
+        if (item && isAlive(item)) {
+          const annotation = item?.annotation;
+          if (annotation && isAlive(annotation)) {
+            // First, deselect any selected regions (annotations)
+            // Use annotation's unselectAll method instead of calling setSelected on each region
+            try {
+              if (annotation.unselectAll && typeof annotation.unselectAll === 'function') {
+                annotation.unselectAll();
+              } else if (annotation.regionStore?.unselectAll && typeof annotation.regionStore.unselectAll === 'function') {
+                annotation.regionStore.unselectAll();
+              } else {
+                // Fallback: try to deselect directly if methods not available
+                const selectedRegions = [...(annotation.selectedRegions || [])];
+                selectedRegions.forEach(region => {
+                  try {
+                    if (region && isAlive(region)) {
+                      // Try different deselection methods
+                      if (region.unselectRegion) region.unselectRegion();
+                      else if (region.setSelected) region.setSelected(false);
+                    }
+                  } catch (e) {
+                    // Ignore individual region errors
+                  }
+                });
+              }
+            } catch (deselectError) {
+              console.warn('[CustomLabelingMenu] Could not deselect regions:', deselectError);
+            }
+
+            // Then, deselect all labels in controls
+            if (annotation.root?.children) {
+              annotation.root.children.forEach(control => {
+                if (control && isAlive(control) && typeof control.unselectAll === 'function') {
+                  control.unselectAll();
+                }
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[CustomLabelingMenu] Error clearing selections:', e);
+      }
+
       this.setState({
         pendingLabel: null,
         pendingTool: null,
@@ -1203,13 +1677,77 @@ export default observer(
       });
     };
 
+    // Get statistics for the currently selected region
+    getSelectedRegionStats = () => {
+      try {
+        const { item } = this.props;
+        if (!item || !isAlive(item)) return null;
+
+        const annotation = item?.annotation;
+        if (!annotation || !isAlive(annotation)) return null;
+
+        const selectedRegions = annotation.selectedRegions || [];
+        if (selectedRegions.length === 0) return null;
+
+        const region = selectedRegions[0];
+        if (!region || !isAlive(region)) return null;
+
+        // Collect statistics
+        const stats = {
+          id: region.id,
+          type: region.type,
+          labels: [],
+        };
+
+        // Get labels
+        if (region.labelings && region.labelings.length > 0) {
+          const labeling = region.labelings[0];
+          if (labeling.selectedLabels && labeling.selectedLabels.length > 0) {
+            stats.labels = labeling.selectedLabels.map(l => l.value || l);
+          } else if (labeling.mainValue) {
+            stats.labels = Array.isArray(labeling.mainValue) ? labeling.mainValue : [labeling.mainValue];
+          }
+        }
+
+        // IMPORTANT: Filter out deleted labels
+        // Check if the labels still exist in the available labels list
+        const availableLabels = this.getAvailableLabels();
+        stats.labels = stats.labels.filter(label => availableLabels.includes(label));
+
+        // Get type-specific info (with decimals like Label Studio)
+        if (region.type === 'rectangleregion') {
+          stats.typeName = 'Rectangle';
+          if (region.x !== undefined) stats.x = region.x;
+          if (region.y !== undefined) stats.y = region.y;
+          if (region.width !== undefined) stats.width = region.width;
+          if (region.height !== undefined) stats.height = region.height;
+          if (region.rotation !== undefined) stats.rotation = region.rotation;
+        } else if (region.type === 'brushregion') {
+          stats.typeName = 'Brush';
+          if (region.x !== undefined) stats.x = region.x;
+          if (region.y !== undefined) stats.y = region.y;
+          if (region.width !== undefined) stats.width = region.width;
+          if (region.height !== undefined) stats.height = region.height;
+        } else if (region.type === 'keypointregion') {
+          stats.typeName = 'Keypoint';
+          if (region.x !== undefined) stats.x = region.x;
+          if (region.y !== undefined) stats.y = region.y;
+        }
+
+        return stats;
+      } catch (error) {
+        console.error('[CustomLabelingMenu] Error getting region stats:', error);
+        return null;
+      }
+    };
+
     // Get available labels from all label controls
     getAvailableLabels = () => {
       try {
         const { item } = this.props;
 
         if (!item || !isAlive(item)) {
-          return ['Unknown'];
+          return [];  // ✅ Ritorna array vuoto invece di ['Unknown']
         }
 
         const annotation = item?.annotation;
@@ -1250,12 +1788,12 @@ export default observer(
           }
         }
 
-        if (availableLabels.size === 0) availableLabels.add('Unknown');
+        // ✅ Rimosso: if (availableLabels.size === 0) availableLabels.add('Unknown');
 
         return Array.from(availableLabels);
       } catch (error) {
 
-        return ['Unknown'];
+        return [];  // ✅ Ritorna array vuoto invece di ['Unknown']
       }
     };
 
@@ -1507,6 +2045,7 @@ export default observer(
 
       return (
         <div
+          className="lsf-custom-labeling-menu"
           style={{
             width: "280px",
             backgroundColor: '#f8f9fa',
@@ -1539,10 +2078,15 @@ export default observer(
             </div>
             <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '4px' }}>
               {availableLabels.map((labelValue, index) => {
-                // Check both our internal state and native state for better accuracy
+                // Check our internal state first - if we have a pendingLabel, use ONLY that
+                // This prevents showing multiple labels as selected when switching between regions
                 const isSelectedByMenu = this.state.pendingLabel === labelValue;
                 const isSelectedNatively = nativeSelectedLabels.includes(labelValue);
-                const isSelected = isSelectedByMenu || isSelectedNatively;
+
+                // Give priority to our state: if we have a pendingLabel, ignore native selection
+                const isSelected = this.state.pendingLabel
+                  ? isSelectedByMenu  // Only use our state
+                  : isSelectedNatively;  // Fall back to native state if we have no pendingLabel
 
                 const labelHotkey = index < 9 ? `${index + 1}` : '';
                 const labelColor = this.getLabelColor(labelValue);
@@ -1593,8 +2137,8 @@ export default observer(
               {/* Prima riga: Brush e Eraser affiancati */}
               <div style={{ display: 'flex', flexDirection: 'row', gap: '4px' }}>
                 {[
-                  { name: 'Brush', type: 'brushlabels', icon: '🖌️' },
-                  { name: 'Eraser', type: 'eraser', icon: '🧽' }
+                  { name: 'Brush', type: 'brushlabels', icon: <IconBrush /> },
+                  { name: 'Eraser', type: 'eraser', icon: <IconEraser /> }
                 ].map((tool, index) => {
                   // Check both our internal state and native state for better accuracy
                   const isSelectedByMenu = this.state.pendingTool === tool.name;
@@ -1629,8 +2173,8 @@ export default observer(
 
               {/* Seconda riga: Rectangle e Keypoint */}
               {[
-                { name: 'Rectangle', type: 'rectanglelabels', icon: '⬛' },
-                { name: 'Keypoint', type: 'keypointlabels', icon: '🎯' }
+                { name: 'Rectangle', type: 'rectanglelabels', icon: <IconRectangle /> },
+                { name: 'Keypoint', type: 'keypointlabels', icon: <IconKeypoint /> }
               ].map((tool, index) => {
                 // Check both our internal state and native state for better accuracy
                 const isSelectedByMenu = this.state.pendingTool === tool.name;
@@ -1708,6 +2252,157 @@ export default observer(
               />
             </div>
           )}
+
+          {/* Warning Message - mostra avvisi sotto il menu */}
+          {this.state.showWarning && this.state.warningMessage && (
+            <div
+              style={{
+                backgroundColor: '#fff3cd',
+                border: '1px solid #ffc107',
+                borderRadius: '6px',
+                padding: '12px',
+                marginTop: '12px',
+                fontSize: '12px',
+                color: '#856404',
+                lineHeight: '1.5',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+                animation: 'slideDown 0.3s ease-out',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+            >
+              <span style={{ flexShrink: 0 }}><IconWarning size={16} /></span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Attenzione</div>
+                <div>{this.state.warningMessage}</div>
+              </div>
+              <button
+                onClick={this.hideWarning}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  color: '#856404',
+                  padding: '0',
+                  lineHeight: '1',
+                  flexShrink: 0
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {/* Region Statistics - mostra statistiche annotazione selezionata */}
+          {(() => {
+            const stats = this.getSelectedRegionStats();
+            return stats ? (
+              <div
+                style={{
+                  backgroundColor: '#e6f7ff',
+                  border: '1px solid #91d5ff',
+                  borderRadius: '6px',
+                  padding: '12px',
+                  marginTop: '12px',
+                  fontSize: '11px',
+                  color: '#0050b3',
+                  lineHeight: '1.6',
+                  animation: 'slideDown 0.3s ease-out',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+              >
+                <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><IconStats /> {stats.typeName || stats.type}</span>
+                  {stats.labels.length > 0 ? (
+                    <span style={{
+                      backgroundColor: this.getLabelColor(stats.labels[0]) + '40',
+                      color: this.getLabelColor(stats.labels[0]),
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      fontSize: '11px',
+                      fontWeight: 'normal'
+                    }}>
+                      {stats.labels.join(', ')}
+                    </span>
+                  ) : (
+                    <span style={{
+                      backgroundColor: '#e8e8e8',
+                      color: '#666666',
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      fontSize: '11px',
+                      fontWeight: 'normal',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <IconWarning size={12} /> Nessuna label
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '11px' }}>
+                  {stats.x !== undefined && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <strong style={{ minWidth: '16px' }}>X:</strong>
+                      <span style={{ fontFamily: 'monospace', fontSize: '10px' }}>
+                        {stats.x.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {stats.y !== undefined && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <strong style={{ minWidth: '16px' }}>Y:</strong>
+                      <span style={{ fontFamily: 'monospace', fontSize: '10px' }}>
+                        {stats.y.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {stats.width !== undefined && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <strong style={{ minWidth: '16px' }}>W:</strong>
+                      <span style={{ fontFamily: 'monospace', fontSize: '10px' }}>
+                        {stats.width.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {stats.height !== undefined && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <strong style={{ minWidth: '16px' }}>H:</strong>
+                      <span style={{ fontFamily: 'monospace', fontSize: '10px' }}>
+                        {stats.height.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {stats.rotation !== undefined && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', gridColumn: '1 / -1' }}>
+                      <strong style={{ minWidth: '16px', display: 'flex', alignItems: 'center', gap: '2px' }}><IconRotation />:</strong>
+                      <span style={{ fontFamily: 'monospace', fontSize: '10px' }}>
+                        {stats.rotation.toFixed(2)}°
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {/* Messaggio quando non c'è label */}
+                {stats.labels.length === 0 && (
+                  <div style={{
+                    marginTop: '10px',
+                    padding: '8px',
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: '4px',
+                    border: '1px dashed #999999',
+                    fontSize: '10px',
+                    color: '#666666',
+                    lineHeight: '1.4',
+                    textAlign: 'center'
+                  }}>
+                    * Premi un tasto numerico (1-9) per assegnare una label a questa annotazione
+                  </div>
+                )}
+              </div>
+            ) : null;
+          })()}
 
         </div>
       );

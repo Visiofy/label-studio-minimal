@@ -458,7 +458,9 @@ const CanvasOverlay = observer(({ item }) => {
     <canvas
       className={styles.overlay}
       ref={(ref) => {
-        item.setOverlayRef(ref);
+        if (isAlive(item)) {
+          item.setOverlayRef(ref);
+        }
       }}
       style={item.imageTransform}
     />
@@ -683,7 +685,6 @@ export default observer(
       const { item } = this.props;
 
       if (!item || !isAlive(item)) {
-        console.warn('[ImageView] Item not available in handleMouseUp');
         return;
       }
 
@@ -1033,9 +1034,11 @@ export default observer(
 
       const [toolsReady, stageLoading] = isFF(FF_LSDV_4583_6) ? [true, false] : [item.hasTools, item.stageWidth <= 1];
 
+      // Restore original logic - the bypass prevents flicker issues
       const imageIsLoaded = item.imageIsLoaded || !isFF(FF_LSDV_4583_6);
       const isViewingAll = store.annotationStore.viewingAll;
 
+      // Debug logging for annotation rendering
       return (
         <ObjectTag item={item} className={wrapperClasses.join(" ")}>
           {paginationEnabled ? (
@@ -1063,7 +1066,9 @@ export default observer(
 
           <div
             ref={(node) => {
-              item.setContainerRef(node);
+              if (isAlive(item)) {
+                item.setContainerRef(node);
+              }
               this.attachObserver(node);
             }}
             className={containerClassName}
@@ -1080,7 +1085,9 @@ export default observer(
             {isFF(FF_LSDV_4583_6) ? (
               <Image
                 ref={(ref) => {
-                  item.setImageRef(ref);
+                  if (isAlive(item)) {
+                    item.setImageRef(ref);
+                  }
                   this.imageRef.current = ref;
                 }}
                 usedValue={item.usedValue}
@@ -1094,7 +1101,9 @@ export default observer(
               <div className={[styles.frame, ...imagePositionClassnames].join(" ")} style={item.canvasSize}>
                 <img
                   ref={(ref) => {
-                    item.setImageRef(ref);
+                    if (isAlive(item)) {
+                      item.setImageRef(ref);
+                    }
                     this.imageRef.current = ref;
                   }}
                   loading={isFF(FF_DEV_3077) && !item.lazyoff ? "lazy" : "false"}
@@ -1231,7 +1240,9 @@ const EntireStage = observer(
     return (
       <Stage
         ref={(ref) => {
-          item.setStageRef(ref);
+          if (isAlive(item)) {
+            item.setStageRef(ref);
+          }
         }}
         className={[styles["image-element"], ...imagePositionClassnames].join(" ")}
         width={size.width}
@@ -1259,10 +1270,15 @@ const EntireStage = observer(
 );
 
 const StageContent = observer(({ item, store, state, crosshairRef }) => {
-  if (!isAlive(item)) return null;
-  if (!store.task || !item.currentSrc) return null;
+  if (!isAlive(item)) {
+    return null;
+  }
+  if (!store.task || !item.currentSrc) {
+    return null;
+  }
 
   const regions = item.regs;
+
   const paginationEnabled = !!item.isMultiItem;
   const wrapperClasses = [styles.wrapperComponent, item.images.length > 1 ? styles.withGallery : styles.wrapper];
 

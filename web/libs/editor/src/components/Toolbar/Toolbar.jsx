@@ -16,6 +16,9 @@ export const Toolbar = inject("store")(
     const [toolbar, setToolbar] = useState(null);
     const windowSize = useWindowSize();
 
+    // Safety check: ensure tools is always an array
+    const safeTools = Array.isArray(tools) ? tools : [];
+
     const alignment = useMemo(() => {
       if (!isDefined(toolbar)) return "right";
 
@@ -31,7 +34,7 @@ export const Toolbar = inject("store")(
       return "right";
     }, [toolbar, windowSize]);
 
-    const toolGroups = tools
+    const toolGroups = safeTools
       .filter((t) => !t.dynamic)
       .reduce((res, tool) => {
         const group = res[tool.group] ?? [];
@@ -41,7 +44,7 @@ export const Toolbar = inject("store")(
         return res;
       }, {});
 
-    const smartTools = tools.filter((t) => t.dynamic);
+    const smartTools = safeTools.filter((t) => t.dynamic);
 
     return (
       <ToolbarProvider value={{ expanded, alignment }}>
@@ -117,19 +120,22 @@ export const Toolbar = inject("store")(
 );
 
 const SmartTools = observer(({ tools }) => {
+  // Safety check: ensure tools is always an array
+  const safeTools = Array.isArray(tools) ? tools : [];
+
   const [selectedIndex, setSelectedIndex] = useState(
     Math.max(
-      tools.findIndex((t) => t.selected),
+      safeTools.findIndex((t) => t.selected),
       0,
     ),
   );
 
-  const selected = useMemo(() => tools[selectedIndex], [selectedIndex]);
+  const selected = useMemo(() => safeTools[selectedIndex], [selectedIndex, safeTools]);
 
-  const hasSelected = tools.some((t) => t.selected);
+  const hasSelected = safeTools.some((t) => t.selected);
 
   return (
-    tools.length > 0 && (
+    safeTools.length > 0 && (
       <Elem name="group">
         <Tool
           smart
@@ -138,9 +144,9 @@ const SmartTools = observer(({ tools }) => {
           icon={selected.iconClass}
           shortcut="M"
           extra={
-            tools.length > 1 ? (
+            safeTools.length > 1 ? (
               <Elem name="smart">
-                {tools.map((t, i) => {
+                {safeTools.map((t, i) => {
                   const ToolView = t.viewClass;
 
                   return (
@@ -168,9 +174,9 @@ const SmartTools = observer(({ tools }) => {
             if (e?.target?.closest(`.${cn("tool").elem("extra")}`)) return;
 
             if (!hasSelected) nextIndex = 0;
-            else if (nextIndex >= tools.length) nextIndex = 0;
+            else if (nextIndex >= safeTools.length) nextIndex = 0;
 
-            const nextTool = tools[nextIndex];
+            const nextTool = safeTools[nextIndex];
 
             setSelectedIndex(nextIndex);
             nextTool.manager.selectTool(nextTool, true);

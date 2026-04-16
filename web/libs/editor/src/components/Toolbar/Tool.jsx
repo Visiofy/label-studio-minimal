@@ -111,7 +111,9 @@ export const Tool = ({
     return smart && extra ? <Elem name="extra">{extra}</Elem> : null;
   }, [smart, extra]);
 
-  const showControls = dynamic === false && controls?.length && (active || (controlsOnHover && hovered));
+  // Ensure controls is always an array to prevent "Cannot read 'length' of undefined" errors
+  const safeControls = Array.isArray(controls) ? controls : [];
+  const showControls = dynamic === false && safeControls.length > 0 && (active || (controlsOnHover && hovered));
   const isAnnotationDrawing = tool?.annotation?.isDrawing;
   const isDisabled = disabled || isAnnotationDrawing;
 
@@ -168,7 +170,7 @@ export const Tool = ({
         ))}
       {showControls && (
         <Elem name="controls" onClickCapture={(e) => e.stopPropagation()}>
-          <Elem name="controls-body">{controls}</Elem>
+          <Elem name="controls-body">{safeControls}</Elem>
         </Elem>
       )}
     </Block>
