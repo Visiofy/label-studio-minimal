@@ -190,7 +190,27 @@ class BaseTaskSerializer(FlexFieldsModelSerializer):
             data = instance.data
             replace_task_data_undefined_with_config_field(data, project)
 
-        return super().to_representation(instance)
+        result = super().to_representation(instance)
+
+        # Add has_null_annotation: True if any non-cancelled annotation has __null__ choice selected
+        has_null = False
+        try:
+            for ann in instance.annotations.all():
+                if ann.was_cancelled:
+                    continue
+                for r in (ann.result or []):
+                    if isinstance(r, dict) and r.get('from_name') == 'tag_null':
+                        choices = r.get('value', {}).get('choices', [])
+                        if '__null__' in choices:
+                            has_null = True
+                            break
+                if has_null:
+                    break
+        except Exception:
+            pass
+        result['has_null_annotation'] = has_null
+
+        return result
 
     class Meta:
         model = Task

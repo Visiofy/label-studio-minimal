@@ -125,12 +125,17 @@ class ProjectSerializer(FlexFieldsModelSerializer):
                 return False
 
             # Check if any control tag has at least one label configured
+            # Exclude the internal tag_null control (used by NullTool) from this check
             has_labels = False
             for tag_name, tag_data in control_weights.items():
+                if tag_name == 'tag_null':
+                    continue  # Skip the hidden NullTool control
                 labels = tag_data.get('labels', {})
-                if labels:  # If labels dict is not empty
+                # Exclude the internal __null__ marker from the count
+                real_labels = {k: v for k, v in labels.items() if k != '__null__'}
+                if real_labels:  # If labels dict is not empty after filtering
                     has_labels = True
-                    logger.info(f"[get_config_has_control_tags] Tag '{tag_name}' ({tag_data.get('type')}) has {len(labels)} label(s): {list(labels.keys())}")
+                    logger.info(f"[get_config_has_control_tags] Tag '{tag_name}' ({tag_data.get('type')}) has {len(real_labels)} label(s): {list(real_labels.keys())}")
                 else:
                     logger.warning(f"[get_config_has_control_tags] Tag '{tag_name}' ({tag_data.get('type')}) has NO labels configured!")
 

@@ -6,6 +6,7 @@ import { Block, cn, Elem } from "../../utils/bem";
 import { isDefined } from "../../utils/utilities";
 import { Tool } from "./Tool";
 import { ToolbarProvider } from "./ToolbarContext";
+import { confirm } from "../../common/Modal/Modal";
 
 import "./FlyoutMenu.scss";
 import "./Tool.scss";
@@ -57,6 +58,7 @@ export const Toolbar = inject("store")(
                 'keypointtool',
                 'rectangletool',
                 'rectangle3pointtool',
+                'polygontool',
                 'eraser',
                 'erasertool'
               ];
@@ -113,11 +115,97 @@ export const Toolbar = inject("store")(
           })}
           {/* Auto-detect DISABILITATO - nascondiamo tutti i smart tool */}
           {false && store.autoAnnotation && <SmartTools tools={smartTools} />}
+          {/* Null Tool: marca l'immagine come nulla (nessun oggetto di interesse) */}
+          <NullTool store={store} />
         </Block>
       </ToolbarProvider>
     );
   }),
 );
+
+const NullTool = observer(({ store }) => {
+  const [nullAnnotationId, setNullAnnotationId] = useState(null);
+
+  const annotation = store.annotationStore?.selected;
+  const annotationId = annotation?.id;
+  const regionCount = annotation?.regionStore?.regions?.length ?? 0;
+
+  // Check if tag_null Choices control has __null__ selected
+  // NOTE: c.sel is the reactive MobX state; c.selected is the static XML attribute (always false)
+  const tagNullControl = annotation?.names?.get('tag_null');
+  const isNullChoiceSelected = tagNullControl?.children?.some(c => c.value === '__null__' && c.sel) ?? false;
+
+  const active = (isNullChoiceSelected || (nullAnnotationId === annotationId)) && regionCount === 0;
+
+  const doMarkNull = () => {
+    const ann = store.annotationStore?.selected;
+
+    if (!ann) return;
+    try {
+      ann.deleteAllRegions({ deleteReadOnly: true });
+      // Mark as null via hidden tag_null Choices
+      const ctrl = ann.names?.get('tag_null');
+      if (ctrl) {
+        const nullChoice = ctrl.children?.find(c => c.value === '__null__');
+        if (nullChoice?.setSelected) {
+          nullChoice.setSelected(true);
+          // Persist the result so it gets saved in the annotation
+          ctrl.updateResult?.();
+        }
+      }
+      setNullAnnotationId(ann.id);
+    } catch(e) { console.error('[NullTool] doMarkNull error:', e); }
+  };
+
+  const handleNull = () => {
+    const ann = store.annotationStore?.selected;
+
+    if (!ann) return;
+
+    if (active) {
+      // Toggle off: deseleziona __null__ e aggiorna il result
+      const ctrl = ann.names?.get('tag_null');
+      if (ctrl) {
+        ctrl.resetSelected?.();
+        ctrl.updateResult?.();
+      }
+      setNullAnnotationId(null);
+      return;
+    }
+
+    const hasRegions = (ann.regionStore?.regions?.length ?? 0) > 0;
+
+    if (hasRegions) {
+      confirm({
+        title: "Mark this image as null?",
+        body: "When the image is marked as null, it will be considered annotated without objects. The existing annotations will be deleted.",
+        okText: "Yes",
+        cancelText: "No",
+        onOk: doMarkNull,
+      });
+    } else {
+      doMarkNull();
+    }
+  };
+
+  return (
+    <Elem name="group">
+      <Tool
+        label="Null Tool"
+        shortcut="n"
+        ariaLabel="null-tool"
+        active={active}
+        onClick={handleNull}
+        icon={
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+            <circle cx="16" cy="16" r="10" stroke="currentColor" strokeWidth="2.5" />
+            <line x1="8.5" y1="23.5" x2="23.5" y2="8.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+        }
+      />
+    </Elem>
+  );
+});
 
 const SmartTools = observer(({ tools }) => {
   // Safety check: ensure tools is always an array

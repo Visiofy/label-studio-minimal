@@ -57,7 +57,17 @@ const _Tool = types
       },
 
       isIncorrectControl() {
-        return Super.isIncorrectControl() && self.current() === null;
+        if (self.current() !== null) return false; // already drawing
+        // Standard check: tag4 has a selected label?
+        if (!Super.isIncorrectControl()) return false;
+        // Fallback: any label control has a selected label? (covers label-sync issues)
+        const annotation = self.annotation;
+        if (annotation?.root?.children) {
+          for (const ctrl of annotation.root.children) {
+            if (ctrl?.type?.includes('labels') && ctrl.isSelected) return false;
+          }
+        }
+        return true;
       },
       isIncorrectLabel() {
         return !self.current() && Super.isIncorrectLabel();
@@ -76,12 +86,22 @@ const _Tool = types
       startDrawing: self.startDrawing,
       _finishDrawing: self._finishDrawing,
       deleteRegion: self.deleteRegion,
+      _clickEv: self._clickEv,
     };
 
     let disposer;
     let closed;
 
     return {
+      // Override: if there is no polygon in progress but a region is selected
+      // (e.g. just finished drawing), deselect first so a new polygon can start.
+      _clickEv(ev, [x, y]) {
+        if (!self.current() && self.annotation.regionStore.hasSelection) {
+          self.annotation.unselectAll(true);
+        }
+        Super._clickEv(ev, [x, y]);
+      },
+
       handleToolSwitch(tool) {
         self.stopListening();
         if (self.getCurrentArea()?.isDrawing && tool.toolName !== "ZoomPanTool") {

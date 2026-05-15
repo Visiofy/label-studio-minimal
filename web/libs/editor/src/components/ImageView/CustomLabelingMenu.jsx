@@ -89,6 +89,15 @@ const IconKeypoint = ({ size = 14 }) => (
   </svg>
 );
 
+const IconPolygon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <path opacity="0.4" fillRule="evenodd" clipRule="evenodd" d="M7 8C7 7.44772 7.44772 7 8 7H24C24.5523 7 25 7.44772 25 8C25 8.47669 24.6665 8.87548 24.22 8.97572C24.2831 9.22777 24.2486 9.50407 24.1017 9.74285L19.9523 16.4855C21.2075 17.5853 22 19.2001 22 21C22 24.3137 19.3137 27 16 27C12.6863 27 10 24.3137 10 21C10 17.6863 12.6863 15 16 15C16.7956 15 17.555 15.1548 18.2498 15.4361L22.2104 9H8C7.44772 9 7 8.55228 7 8Z" fill="currentColor"/>
+    <circle cx="16" cy="21" r="3" fill="currentColor"/>
+    <circle cx="8" cy="8" r="2.5" fill="currentColor"/>
+    <circle cx="24" cy="8" r="2.5" fill="currentColor"/>
+  </svg>
+);
+
 const IconWarning = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
     <path d="M12 2L2 20H22L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="currentColor" fillOpacity="0.2"/>
@@ -172,7 +181,7 @@ export default observer(
 
           return {
             lastTool: prefs.lastTool || null,
-            lastLabel: prefs.lastLabel || null
+            lastLabel: null  // Never restore label across projects
           };
         }
       } catch (error) {
@@ -190,7 +199,7 @@ export default observer(
       try {
         const prefs = {
           lastTool: tool,
-          lastLabel: label,
+          // label is intentionally NOT saved — it changes per project
           timestamp: Date.now()
         };
         localStorage.setItem('customLabelingMenu_preferences', JSON.stringify(prefs));
@@ -266,7 +275,7 @@ export default observer(
       if (!hasTool && !hasLabel) {
         message = 'Seleziona un tool e una label per iniziare. Usa i pulsanti del menu o le scorciatoie da tastiera (B/R/K/E per i tool, 1-9 per le label).';
       } else if (!hasTool && hasLabel) {
-        message = 'Seleziona un tool per disegnare. Premi B (Brush), R (Rectangle), K (Keypoint) o E (Eraser).';
+        message = 'Seleziona un tool per disegnare. Premi B (Brush), R (Rectangle), K (Keypoint), G (Polygon) o E (Eraser).';
       } else if (hasTool && !hasLabel && pendingTool !== 'Eraser') {
         // Eraser non ha bisogno di una label
         message = 'Seleziona una label prima di disegnare! Premi un tasto numerico (1-9) oppure clicca direttamente sul menu per selezionare una label.';
@@ -302,7 +311,6 @@ export default observer(
       // Se abbiamo sia tool che label salvati, applicali
       if (pendingTool && pendingLabel) {
 
-
         // Applica con un delay minimo per dare tempo al sistema di inizializzarsi
         setTimeout(() => {
           if (this._isMounted) {
@@ -310,7 +318,7 @@ export default observer(
             // Termina l'inizializzazione dopo aver applicato le preferenze
             this.setState({ isInitializing: false });
           }
-        }, 50); // Ridotto da 500ms a 50ms
+        }, 50);
       } else if (pendingTool) {
         // Solo il tool è salvato
 
@@ -487,9 +495,15 @@ export default observer(
 
       try {
         // Tool hotkeys
+        try { hotkeys.removeKey("b"); } catch(e) {}
+        try { hotkeys.removeKey("r"); } catch(e) {}
+        try { hotkeys.removeKey("k"); } catch(e) {}
+        try { hotkeys.removeKey("g"); } catch(e) {}
+        try { hotkeys.removeKey("e"); } catch(e) {}
         hotkeys.addKey("b", this.handleBrushHotkey, "Custom Brush selection");
         hotkeys.addKey("r", this.handleRectangleHotkey, "Custom Rectangle selection");
         hotkeys.addKey("k", this.handleKeypointHotkey, "Custom Keypoint selection");
+        hotkeys.addKey("g", this.handlePolygonHotkey, "Custom Polygon selection");
         hotkeys.addKey("e", this.handleEraserHotkey, "Custom Eraser selection");
 
         // Label number hotkeys
@@ -939,6 +953,7 @@ export default observer(
           const toolName = selectedTool.fullName?.toLowerCase() || '';
           if (toolName.includes('eraser')) currentTool = 'Eraser';
           else if (toolName.includes('brush')) currentTool = 'Brush';
+          else if (toolName.includes('polygon')) currentTool = 'Polygon';
           else if (toolName.includes('rectangle')) currentTool = 'Rectangle';
           else if (toolName.includes('keypoint') || toolName.includes('point')) currentTool = 'Keypoint';
         }
@@ -1066,6 +1081,7 @@ export default observer(
         'Brush': 'brushlabels',
         'Rectangle': 'rectanglelabels',
         'Keypoint': 'keypointlabels',
+        'Polygon': 'polygonlabels',
         'Eraser': 'eraser'
       };
 
@@ -1095,6 +1111,7 @@ export default observer(
         'brushlabels': 'brush',
         'rectanglelabels': 'Rectangle',
         'keypointlabels': 'KeyPoint',
+        'polygonlabels': 'Polygon',
         'eraser': 'eraser'
       };
 
@@ -1182,43 +1199,55 @@ export default observer(
         }
 
         const currentTool = toolsManager.findSelectedTool();
-        const newTool = this.findToolByControlType(this.mapToolNameToControlType(toolName));
+        const controlType = this.mapToolNameToControlType(toolName);
+        const newTool = this.findToolByControlType(controlType);
 
         if (!newTool) {
+          console.error(`[CustomMenu] applyToolLabel: tool NOT FOUND for "${toolName}" (controlType="${controlType}"). allTools=`, toolsManager.allTools().map(t => t.fullName));
           return false;
         }
 
-        // CRITICAL: Manually trigger handleToolSwitch if current tool has it
-        if (currentTool && currentTool !== newTool && currentTool.handleToolSwitch) {
-
-          currentTool.handleToolSwitch(newTool);
+        // Only switch tool if it's actually different - re-selecting the same tool
+        // calls unselectAll() internally which can interfere with label selection
+        if (currentTool !== newTool) {
+          if (currentTool?.handleToolSwitch) {
+            currentTool.handleToolSwitch(newTool);
+          }
+          toolsManager.selectTool(newTool, true);
         }
 
-        // Step 2: Directly activate the new tool through the tools manager
-        toolsManager.selectTool(newTool, true);
+        // Step 3: Find the control that has the label.
+        // First try the "canonical" control for the tool type, then fall back to any control.
+        const annotation = item.annotation;
+        let control = this.findControlByToolType(toolName);
+        let labelObj = (control && isAlive(control) && Array.isArray(control?.children))
+          ? control.children.find(l => l && isAlive(l) && l.value === labelValue)
+          : null;
 
+        if (!labelObj && annotation?.root?.children) {
+          // Fallback: search in ALL label controls
+          for (const ctrl of annotation.root.children) {
+            if (ctrl && isAlive(ctrl) && ctrl.type?.includes('labels') && Array.isArray(ctrl.children)) {
+              const found = ctrl.children.find(l => l && isAlive(l) && l.value === labelValue);
+              if (found) {
+                control = ctrl;
+                labelObj = found;
+                console.warn(`[CustomMenu] setDirectSelection: label "${labelValue}" not in ${toolName} control, using fallback control type="${ctrl.type}"`);
+                break;
+              }
+            }
+          }
+        }
 
-        // Step 3: Find the control that matches this tool
-        const control = this.findControlByToolType(toolName);
         if (!control || !isAlive(control)) {
-
           return true; // Tool activation succeeded, label selection not possible
         }
-
-        // Additional safety check for control children
         if (!control.children || !Array.isArray(control.children)) {
-
-          return true; // Tool activation succeeded, label selection not possible
+          return true;
         }
-
-        // Step 4: Find and validate the label
-        const labelObj = control.children.find(label =>
-          label && isAlive(label) && label.value === labelValue
-        );
-
         if (!labelObj || !isAlive(labelObj)) {
-
-          return true; // Tool activation succeeded, label selection not possible
+          console.warn(`[CustomMenu] setDirectSelection: label "${labelValue}" not found in any control`);
+          return true;
         }
 
         // Step 5: Safely set label selection with additional checks
@@ -1248,14 +1277,32 @@ export default observer(
             try {
               labelObj.setSelected(true);
 
+              // If we used a fallback control (not the canonical one for this tool),
+              // also try to select the same label value in the canonical control (tag4 for Polygon).
+              // This ensures the polygon region is stored with the correct from_name.
+              const canonicalControl = this.findControlByToolType(toolName);
+              if (canonicalControl && isAlive(canonicalControl) && canonicalControl !== control &&
+                  Array.isArray(canonicalControl.children)) {
+                const canonicalLabel = canonicalControl.children.find(l => l && isAlive(l) && l.value === labelValue);
+                if (canonicalLabel && isAlive(canonicalLabel) && canonicalLabel.setSelected) {
+                  // Clear other selections in canonical control first
+                  canonicalControl.children.forEach(l => {
+                    if (l && isAlive(l) && l !== canonicalLabel && l.selected && l.setSelected) {
+                      try { l.setSelected(false); } catch(e) {}
+                    }
+                  });
+                  try { canonicalLabel.setSelected(true); } catch(e) {}
+                }
+              }
+
               return true;
             } catch (err) {
-
+              console.error(`[CustomMenu] setDirectSelection: error calling setSelected:`, err);
               return true; // Tool activation still succeeded
             }
           }
         } catch (selectionError) {
-
+          console.error(`[CustomMenu] setDirectSelection: selectionError:`, selectionError);
           return true; // Tool activation still succeeded
         }
 
@@ -1299,6 +1346,7 @@ export default observer(
         'Brush': 'brushlabels',
         'Rectangle': 'rectanglelabels',
         'Keypoint': 'keypointlabels',
+        'Polygon': 'polygonlabels',
         'Eraser': 'eraser'
       };
       return mapping[toolName] || toolName.toLowerCase() + 'labels';
@@ -1309,7 +1357,8 @@ export default observer(
       const mapping = {
         'brushregion': 'Brush',
         'rectangleregion': 'Rectangle',
-        'keypointregion': 'Keypoint'
+        'keypointregion': 'Keypoint',
+        'polygonregion': 'Polygon'
       };
       return mapping[regionType] || 'Rectangle';
     };
@@ -1514,20 +1563,25 @@ export default observer(
         if (!toolsManager) return;
 
         const currentTool = toolsManager.findSelectedTool();
-        const newTool = this.findToolByControlType(this.mapToolNameToControlType(toolName));
+        const controlType = this.mapToolNameToControlType(toolName);
+        const newTool = this.findToolByControlType(controlType);
 
-        if (!newTool) return;
-
-        // CRITICAL: Manually trigger handleToolSwitch if current tool has it
-        if (currentTool && currentTool !== newTool && currentTool.handleToolSwitch) {
-
-          currentTool.handleToolSwitch(newTool);
+        if (!newTool) {
+          console.error(`[CustomMenu] activateToolOnly: tool NOT FOUND for "${toolName}" (controlType="${controlType}"). allTools=`, toolsManager.allTools().map(t => t.fullName));
+          return;
         }
 
+        console.log(`[CustomMenu] activateToolOnly: switching to "${toolName}" (${newTool.fullName})`);
 
-        toolsManager.selectTool(newTool, true);
+        // Only switch if actually different
+        if (currentTool !== newTool) {
+          if (currentTool?.handleToolSwitch) {
+            currentTool.handleToolSwitch(newTool);
+          }
+          toolsManager.selectTool(newTool, true);
+        }
       } catch (error) {
-
+        console.error(`[CustomMenu] activateToolOnly error for "${toolName}":`, error);
       }
     };
 
@@ -1595,6 +1649,11 @@ export default observer(
           await this.activateSamForKeypoints();
         }
       }, 200);
+    };
+
+    handlePolygonHotkey = () => {
+      this.lastMenuInteraction = Date.now();
+      this.handleToolClick('Polygon');
     };
 
     handleEraserHotkey = () => {
@@ -1825,6 +1884,7 @@ export default observer(
       else if (toolName.includes('brush')) return 'Brush';
       else if (toolName.includes('rectangle')) return 'Rectangle';
       else if (toolName.includes('keypoint') || toolName.includes('point')) return 'Keypoint';
+      else if (toolName.includes('polygon')) return 'Polygon';
       return null;
     };
 
@@ -2171,17 +2231,18 @@ export default observer(
                 })}
               </div>
 
-              {/* Seconda riga: Rectangle e Keypoint */}
+              {/* Seconda riga: Rectangle, Keypoint e Polygon */}
               {[
                 { name: 'Rectangle', type: 'rectanglelabels', icon: <IconRectangle /> },
-                { name: 'Keypoint', type: 'keypointlabels', icon: <IconKeypoint /> }
+                { name: 'Keypoint', type: 'keypointlabels', icon: <IconKeypoint /> },
+                { name: 'Polygon', type: 'polygonlabels', icon: <IconPolygon /> }
               ].map((tool, index) => {
                 // Check both our internal state and native state for better accuracy
                 const isSelectedByMenu = this.state.pendingTool === tool.name;
                 const isSelectedNatively = nativeToolName === tool.name;
                 const isSelected = isSelectedByMenu || isSelectedNatively;
 
-                const toolHotkey = ['R', 'K'][index];
+                const toolHotkey = ['R', 'K', 'G'][index];
 
                 return (
                   <span

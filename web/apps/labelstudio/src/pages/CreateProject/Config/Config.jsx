@@ -888,7 +888,9 @@ const UnifiedLabelManager = ({ template, controls }) => {
     const allLabels = new Set();
     controls.forEach(control => {
       Array.from(control.children).forEach(label => {
-        allLabels.add(label.getAttribute("value"));
+        const value = label.getAttribute("value");
+        if (value === "__null__") return;
+        allLabels.add(value);
       });
     });
     return Array.from(allLabels);
