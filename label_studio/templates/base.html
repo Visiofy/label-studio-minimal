@@ -59,8 +59,7 @@
 
   {% block page_labeling %}
     <title>Visiofy</title>
-    <link href="https://cloud.visiofy.ai:5005/static/icons/logo/favicon-512.png" rel="shortcut icon"/>
-    <link href="https://cloud.visiofy.ai:5005/static/icons/logo/favicon-512.png" rel="icon" type="image/png"/>
+    <link href="{% static 'images/symbol.svg' %}" rel="icon" type="image/svg+xml"/>
   {% endblock %}
 
   {% block head %}
@@ -73,7 +72,11 @@
 
 <body>
 
-<div class="app-wrapper"></div>
+<div class="app-wrapper">
+  <div id="app-loading-placeholder" style="display:flex;align-items:center;justify-content:center;height:100vh;width:100vw;">
+    <img src="{% static 'images/landscape-b.svg' %}" style="height:40px;width:auto;" alt=""/>
+  </div>
+</div>
 
 <template id="main-content">
   <main class="main">

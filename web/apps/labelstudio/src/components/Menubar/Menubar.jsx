@@ -1,4 +1,5 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReactComponent as Logo } from '../../assets/images/landscape-b.svg';
 import { useHistory } from "react-router";
 import { StaticContent } from "../../app/StaticContent/StaticContent";
 import {
@@ -253,10 +254,9 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
               alignItems: 'center'
             }}
           >
-            <img 
-              src="https://cloud.visiofy.ai:5005/static/icons/logo/landscape-b.svg" 
-              className={`${menubarClass.elem("logo")}`} 
-              alt="Visiofy Logo" 
+            <Logo
+              className={`${menubarClass.elem("logo")}`}
+              aria-label="Visiofy Logo"
               style={{
                 height: '32px',
                 width: 'auto'

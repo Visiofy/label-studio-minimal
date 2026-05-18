@@ -1,13 +1,10 @@
-import { CustomLogo } from "@humansignal/ui/lib/custom-logo";
+import { ReactComponent as AnimatedLogo } from '../../assets/images/logo_animato_corretto.svg';
 
 export const Spinner = ({ className, style, size = 32, stopped = false }) => {
   return (
-    <CustomLogo
+    <AnimatedLogo
       className={className}
-      style={style}
-      size={size}
-      animate={!stopped}
-      variant="opossum"
+      style={{ width: size, height: size, animationPlayState: stopped ? 'paused' : 'running', ...style }}
     />
   );
 };
