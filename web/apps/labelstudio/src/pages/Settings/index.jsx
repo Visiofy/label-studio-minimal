@@ -46,8 +46,7 @@ const SettingsLayoutManager = ({ children, ...routeProps }) => {
     }
 
     if (location.pathname.includes('/settings')) {
-      // Prendi la porta direttamente dalla URL corrente
-      const currentPort = window.location.port;
+      const currentPort = window.location.port || window.location.host.split(".")[0].split("-")[1];
       
       console.log('=== PORT DETECTION ===');
       console.log('Current URL:', window.location.href);
@@ -58,7 +57,9 @@ const SettingsLayoutManager = ({ children, ...routeProps }) => {
         return;
       }
       
-      const exportUrl = `${window.location.protocol}//${window.location.hostname}:6001/api/export_format?source_port=${currentPort}`;
+      const exportUrl = window.location.port
+        ? `${window.location.protocol}//${window.location.hostname}:6001/api/export_format?source_port=${currentPort}`
+        : `https://label-studio.visiofy.ai/api/export_format?source_port=${currentPort}`;
       
       console.log('Export URL:', exportUrl);
 

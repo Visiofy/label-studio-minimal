@@ -232,7 +232,9 @@
                 timestamp: Date.now(),
                 source: 'label-studio',
                 user_id: window.APP_SETTINGS?.user?.id || null,
-                port: window.location.port || '8010'
+                port: window.location.port 
+                  ? window.location.port 
+                  : window.location.host.split(".")[0].split("-")[1], //ls-8000.visiofy.ai -> 8000
               }),
               signal: controller.signal
             });
@@ -339,7 +341,7 @@
       // Avvia automaticamente il ping quando la pagina è caricata
       document.addEventListener('DOMContentLoaded', function() {
         // Endpoint fisso al tuo server
-        const endpoint = `${window.location.protocol}//${window.location.hostname}:6001/api/user_heartbeat`;
+        const endpoint = `https://label-studio.visiofy.ai/api/user_heartbeat`;
 
         // Avvia il ping ogni 45 secondi
         window.pingManager.start(endpoint, 45);

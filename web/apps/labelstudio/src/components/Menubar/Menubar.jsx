@@ -45,8 +45,9 @@ const LeftContextMenu = ({ className }) => (
 const RightContextMenu = ({ className, ...props }) => {
   const history = useHistory();
   
-  const getCurrentPort = () => {
-    return window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+  const getProjectId = () => {
+    const pathMatch = window.location.pathname.match(/\/projects\/(\d+)/);
+    return pathMatch ? pathMatch[1] : null;
   };
 
   const getProjectId = () => {
@@ -56,7 +57,9 @@ const RightContextMenu = ({ className, ...props }) => {
 
   const currentPort = getCurrentPort();
   const projectId = getProjectId();
-  const exportUrl = `${window.location.protocol}//${window.location.hostname}:6001/api/export_format?source_port=${currentPort}`;
+  const exportUrl = window.location.port
+    ? `http://192.168.2.136:5005/api/export_format?source_port=${currentPort}`
+    : `https://label-studio.visiofy.ai/api/export_format?source_port=${currentPort}`;
 
   const handleDataConfigClick = useCallback((e) => {
     e.preventDefault();

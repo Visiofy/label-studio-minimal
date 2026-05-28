@@ -13,13 +13,16 @@
 <body>
   <div id="root"></div>
   <script>
-    function aa() { 
-      const heartbeatUrl = `${window.location.protocol}//${window.location.hostname}:6001/api/user_heartbeat`;
-      fetch(heartbeatUrl, { method: 'POST' });}
-    aa()
-    setInterval(() => {
-      aa()
-    }, 300);
+    const heartbeatUrl = window.location.port
+      ? `${window.location.protocol}//${window.location.hostname}:6001/api/user_heartbeat`
+      : `https://label-studio.visiofy.ai/api/user_heartbeat`;
+
+    function aa() {
+      fetch(heartbeatUrl, { method: 'POST' });
+    }
+
+    aa();
+    setInterval(aa, 300);
   </script>
 </body>
 

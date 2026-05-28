@@ -503,7 +503,8 @@ export default observer(
         hotkeys.addKey("b", this.handleBrushHotkey, "Custom Brush selection");
         hotkeys.addKey("r", this.handleRectangleHotkey, "Custom Rectangle selection");
         hotkeys.addKey("k", this.handleKeypointHotkey, "Custom Keypoint selection");
-        hotkeys.addKey("g", this.handlePolygonHotkey, "Custom Polygon selection");
+        const hasPolygon = this.props.item?.annotation?.root?.children?.some(c => c?.type === 'polygonlabels') ?? false;
+        if (hasPolygon) hotkeys.addKey("g", this.handlePolygonHotkey, "Custom Polygon selection");
         hotkeys.addKey("e", this.handleEraserHotkey, "Custom Eraser selection");
 
         // Label number hotkeys
@@ -2090,7 +2091,9 @@ export default observer(
         // Get real-time native state for better accuracy
         nativeToolName = this.getNativeSelectedToolName(selectedTool);
         nativeSelectedLabels = this.getNativeSelectedLabels();
+
       } catch (renderError) {
+
 
         return <div style={{ padding: '16px', color: '#ff6b6b' }}>Menu temporarily unavailable</div>;
       }
@@ -2102,6 +2105,10 @@ export default observer(
       if (!Array.isArray(nativeSelectedLabels)) {
         nativeSelectedLabels = [];
       }
+
+      const hasPolygonControl = item?.annotation?.root?.children?.some(
+        c => c?.type === 'polygonlabels'
+      ) ?? false;
 
       return (
         <div
@@ -2231,11 +2238,11 @@ export default observer(
                 })}
               </div>
 
-              {/* Seconda riga: Rectangle, Keypoint e Polygon */}
+              {/* Seconda riga: Rectangle, Keypoint e Polygon (Polygon solo se nel label_config) */}
               {[
                 { name: 'Rectangle', type: 'rectanglelabels', icon: <IconRectangle /> },
                 { name: 'Keypoint', type: 'keypointlabels', icon: <IconKeypoint /> },
-                { name: 'Polygon', type: 'polygonlabels', icon: <IconPolygon /> }
+                ...(hasPolygonControl ? [{ name: 'Polygon', type: 'polygonlabels', icon: <IconPolygon /> }] : [])
               ].map((tool, index) => {
                 // Check both our internal state and native state for better accuracy
                 const isSelectedByMenu = this.state.pendingTool === tool.name;
